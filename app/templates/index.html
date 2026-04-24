@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="hero">
+    <h1>¿Qué plan estás buscando?</h1>
+    <p>Filtrá por lo que necesitás y encontrá la actividad perfecta.</p>
+</section>
+
+<!-- CLIMA ACTUAL -->
+{% if clima_actual %}
+<div class="clima-banner">
+    <span class="clima-icono">
+        {% if clima_actual == 'soleado' %}☀️
+        {% elif clima_actual == 'nublado' %}☁️
+        {% elif clima_actual == 'lluvioso' %}🌧️
+        {% endif %}
+    </span>
+    <span>
+        Clima actual en <strong>{{ filtros.ciudad }}</strong>:
+        <strong>{{ clima_actual | capitalize }}</strong>
+        — Mostrando planes compatibles.
+    </span>
+    <a href="/" class="clima-ignorar">Ver todos igual</a>
+</div>
+{% endif %}
+
+<!-- FILTROS -->
+<form class="filtros" method="get" action="/">
+    <div class="filtro-grupo">
+        <label>🕐 Hora del día</label>
+        <input type="number" name="hora" min="0" max="23" placeholder="ej: 15"
+               value="{{ filtros.hora or '' }}">
+    </div>
+
+    <div class="filtro-grupo">
+        <label>💰 Presupuesto máximo</label>
+        <input type="number" name="presupuesto_max" min="0" placeholder="ej: 5000"
+               value="{{ filtros.presupuesto_max or '' }}">
+    </div>
+
+    <div class="filtro-grupo">
+        <label>👥 Cantidad de personas</label>
+        <input type="number" name="cantidad_personas" min="1" placeholder="ej: 4"
+               value="{{ filtros.cantidad_personas or '' }}">
+    </div>
+
+    <div class="filtro-grupo">
+        <label>🐾 ¿Con mascotas?</label>
+        <select name="acepta_mascotas">
+            <option value="">No importa</option>
+            <option value="true"  {% if filtros.acepta_mascotas == 'true'  %}selected{% endif %}>Sí</option>
+            <option value="false" {% if filtros.acepta_mascotas == 'false' %}selected{% endif %}>No</option>
+        </select>
+    </div>
+
+    <div class="filtro-grupo">
+        <label>🏠 ¿Dónde?</label>
+        <select name="es_exterior">
+            <option value="">No importa</option>
+            <option value="true"  {% if filtros.es_exterior == 'true'  %}selected{% endif %}>Aire libre</option>
+            <option value="false" {% if filtros.es_exterior == 'false' %}selected{% endif %}>Cerrado</option>
+        </select>
+    </div>
+
+    <div class="filtro-grupo">
+        <label>📍 Ciudad (clima automático)</label>
+        <input type="text" name="ciudad" placeholder="ej: Buenos Aires"
+               value="{{ filtros.ciudad or '' }}">
+    </div>
+
+    <div class="filtros-botones">
+        <button type="submit" class="btn-buscar">Buscar planes</button>
+        <a href="/" class="btn-limpiar">Limpiar filtros</a>
+    </div>
+</form>
+
+<!-- RESULTADOS -->
+<section class="resultados">
+    {% if planes %}
+        <div class="resultados-header">
+            <p class="cantidad-resultados">
+                {{ planes|length }} plan{% if planes|length != 1 %}es{% endif %} encontrado{% if planes|length != 1 %}s{% endif %}
+            </p>
+            <form method="post" action="/restaurar">
+                <button type="submit" class="btn-restaurar">↺ Restaurar descartados</button>
+            </form>
+        </div>
+
+        <div class="grid-planes">
+            {% for plan in planes %}
+            <div class="card-plan">
+                <div class="card-header">
+                    <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
+                        {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
+                    </span>
+                    {% if plan.acepta_mascotas %}
+                    <span class="badge badge-mascota">🐾 Mascotas OK</span>
+                    {% endif %}
+                </div>
+
+                <h2 class="card-titulo">{{ plan.nombre }}</h2>
+                <p class="card-desc">{{ plan.descripcion }}</p>
+
+                <div class="card-info">
+                    {% if plan.hora_inicio is not none and plan.hora_fin is not none %}
+                    <span>🕐 {{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00</span>
+                    {% endif %}
+
+                    {% if plan.presupuesto_max %}
+                    <span>💰 Hasta ${{ plan.presupuesto_max | int }}</span>
+                    {% else %}
+                    <span>💰 Gratis o sin límite</span>
+                    {% endif %}
+
+                    {% if plan.personas_min and plan.personas_max %}
+                    <span>👥 {{ plan.personas_min }} - {{ plan.personas_max }} personas</span>
+                    {% elif plan.personas_min %}
+                    <span>👥 Desde {{ plan.personas_min }} persona{% if plan.personas_min != 1 %}s{% endif %}</span>
+                    {% endif %}
+
+                    {% if plan.direccion %}
+                    <span>📍 {{ plan.direccion }}</span>
+                    {% endif %}
+
+                    {% if plan.clima_recomendado != 'cualquiera' %}
+                    <span>🌤️ Mejor con clima {{ plan.clima_recomendado }}</span>
+                    {% endif %}
+                </div>
+
+                <form method="post" action="/descartar/{{ plan.id }}">
+                    <button type="submit" class="btn-descartar">✕ No me interesa</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <div class="sin-resultados">
+            <p>😕 No encontramos planes con esos filtros.</p>
+            <div class="sin-resultados-botones">
+                <a href="/" class="btn-limpiar">Limpiar filtros</a>
+                <form method="post" action="/restaurar">
+                    <button type="submit" class="btn-restaurar">↺ Restaurar descartados</button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+</section>
+
+{% endblock %}

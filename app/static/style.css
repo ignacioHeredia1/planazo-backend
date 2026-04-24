@@ -1,0 +1,301 @@
+/* ── Reset y base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Navbar ── */
+.navbar {
+    background: #fff;
+    border-bottom: 1px solid #e8e8e0;
+    padding: 0 2rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+}
+
+.navbar-inner {
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.logo {
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: #1a1a1a;
+}
+
+.tagline {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+/* ── Contenedor principal ── */
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    flex: 1;
+}
+
+/* ── Hero ── */
+.hero {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+.hero p {
+    color: #666;
+    font-size: 1.05rem;
+}
+
+/* ── Filtros ── */
+.filtros {
+    background: #fff;
+    border: 1px solid #e8e8e0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    align-items: flex-end;
+}
+
+.filtro-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 140px;
+    flex: 1;
+}
+
+.filtro-grupo label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.filtro-grupo input,
+.filtro-grupo select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #fafafa;
+    color: #1a1a1a;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.filtro-grupo input:focus,
+.filtro-grupo select:focus {
+    border-color: #6c63ff;
+}
+
+.filtros-botones {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+
+.btn-buscar {
+    background: #6c63ff;
+    color: #fff;
+    border: none;
+    padding: 0.55rem 1.4rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-buscar:hover { background: #574fd6; }
+
+.btn-limpiar {
+    color: #888;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 0.55rem 0.5rem;
+}
+
+.btn-limpiar:hover { color: #333; }
+
+/* ── Resultados ── */
+.cantidad-resultados {
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.grid-planes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+}
+
+/* ── Cards ── */
+.card-plan {
+    background: #fff;
+    border: 1px solid #e8e8e0;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: box-shadow 0.2s;
+}
+
+.card-plan:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.card-header {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+}
+
+.badge-exterior { background: #e6f4ea; color: #2d7a3a; }
+.badge-interior { background: #e8eaf6; color: #3949ab; }
+.badge-mascota  { background: #fff3e0; color: #e65100; }
+
+.card-titulo {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.card-desc {
+    color: #555;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.88rem;
+    color: #666;
+}
+
+.btn-descartar {
+    margin-top: auto;
+    background: none;
+    border: 1px solid #ddd;
+    color: #999;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    align-self: flex-start;
+}
+
+.btn-descartar:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+    background: #fff5f5;
+}
+
+/* ── Resultados header ── */
+.resultados-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+/* ── Botón restaurar ── */
+.btn-restaurar {
+    background: none;
+    border: 1px solid #ddd;
+    color: #888;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-restaurar:hover {
+    border-color: #6c63ff;
+    color: #6c63ff;
+}
+
+/* ── Sin resultados ── */
+.sin-resultados {
+    text-align: center;
+    padding: 3rem 0;
+    color: #888;
+}
+
+.sin-resultados p { font-size: 1.1rem; margin-bottom: 1rem; }
+
+.sin-resultados-botones {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ── Banner de clima ── */
+.clima-banner {
+    background: #fff;
+    border: 1px solid #e8e8e0;
+    border-left: 4px solid #6c63ff;
+    border-radius: 10px;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    flex-wrap: wrap;
+}
+
+.clima-icono { font-size: 1.4rem; }
+
+.clima-ignorar {
+    margin-left: auto;
+    color: #aaa;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.clima-ignorar:hover { color: #666; }
+
+/* ── Footer ── */
+footer {
+    text-align: center;
+    padding: 1.5rem;
+    color: #aaa;
+    font-size: 0.85rem;
+    border-top: 1px solid #e8e8e0;
+    background: #fff;
+}
