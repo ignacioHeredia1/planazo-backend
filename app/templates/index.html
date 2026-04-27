@@ -64,16 +64,45 @@
     </div>
 
     <div class="filtro-grupo">
+        <label>🌤️ Clima</label>
+        <select name="clima">
+            <option value="">No importa</option>
+            <option value="soleado"  {% if filtros.clima == 'soleado'  %}selected{% endif %}>Soleado</option>
+            <option value="nublado"  {% if filtros.clima == 'nublado'  %}selected{% endif %}>Nublado</option>
+            <option value="lluvioso" {% if filtros.clima == 'lluvioso' %}selected{% endif %}>Lluvioso</option>
+        </select>
+    </div>
+
+    <div class="filtro-grupo">
         <label>📍 Ciudad (clima automático)</label>
         <input type="text" name="ciudad" placeholder="ej: Buenos Aires"
                value="{{ filtros.ciudad or '' }}">
     </div>
 
+    <div class="filtro-grupo">
+        <label>📏 Distancia máxima (km)</label>
+        <input type="number" name="km_max" min="1" placeholder="ej: 10"
+               value="{{ filtros.km_max or '' }}">
+    </div>
+
+    <!-- Campos ocultos para lat/lon del usuario -->
+    <input type="hidden" name="lat_usuario" id="lat_usuario" value="{{ filtros.lat_usuario or '' }}">
+    <input type="hidden" name="lon_usuario" id="lon_usuario" value="{{ filtros.lon_usuario or '' }}">
+
     <div class="filtros-botones">
-        <button type="submit" class="btn-buscar">Buscar planes</button>
+        <button type="submit" class="btn-buscar" id="btn-buscar">Buscar planes</button>
+        <button type="button" class="btn-ubicacion" onclick="obtenerUbicacion()">📍 Usar mi ubicación</button>
         <a href="/" class="btn-limpiar">Limpiar filtros</a>
     </div>
 </form>
+
+<!-- MAPA -->
+{% if planes_con_ubicacion %}
+<div class="mapa-wrapper">
+    <h3 class="mapa-titulo">📍 Planes en el mapa</h3>
+    <div id="mapa"></div>
+</div>
+{% endif %}
 
 <!-- RESULTADOS -->
 <section class="resultados">
@@ -147,5 +176,77 @@
         </div>
     {% endif %}
 </section>
+
+<!-- LEAFLET -->
+{% if planes_con_ubicacion %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const planesConUbicacion = {{ planes_con_ubicacion | tojson }};
+    const latUsuario = {{ filtros.lat_usuario or 'null' }};
+    const lonUsuario = {{ filtros.lon_usuario or 'null' }};
+
+    // Centrar el mapa en el primer plan o en el usuario
+    let centroLat = planesConUbicacion[0].latitud;
+    let centroLon = planesConUbicacion[0].longitud;
+    if (latUsuario && lonUsuario) {
+        centroLat = latUsuario;
+        centroLon = lonUsuario;
+    }
+
+    const mapa = L.map('mapa').setView([centroLat, centroLon], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(mapa);
+
+    // Marcador del usuario
+    if (latUsuario && lonUsuario) {
+        L.circleMarker([latUsuario, lonUsuario], {
+            radius: 10,
+            color: '#6c63ff',
+            fillColor: '#6c63ff',
+            fillOpacity: 0.8
+        }).addTo(mapa).bindPopup('📍 Tu ubicación');
+    }
+
+    // Marcadores de planes
+    planesConUbicacion.forEach(plan => {
+        L.marker([plan.latitud, plan.longitud])
+            .addTo(mapa)
+            .bindPopup(`<strong>${plan.nombre}</strong><br>${plan.direccion || ''}`);
+    });
+</script>
+{% endif %}
+
+<!-- Script para obtener ubicación del usuario -->
+<script>
+function obtenerUbicacion() {
+    if (!navigator.geolocation) {
+        alert('Tu navegador no soporta geolocalización.');
+        return;
+    }
+    const btn = document.querySelector('.btn-ubicacion');
+    btn.textContent = '⏳ Obteniendo ubicación...';
+    btn.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            document.getElementById('lat_usuario').value = pos.coords.latitude;
+            document.getElementById('lon_usuario').value = pos.coords.longitude;
+            btn.textContent = '✅ Ubicación obtenida';
+            // Si no hay km_max puesto, ponemos 20 por defecto
+            const kmInput = document.querySelector('input[name="km_max"]');
+            if (!kmInput.value) kmInput.value = 20;
+            document.getElementById('btn-buscar').click();
+        },
+        () => {
+            alert('No se pudo obtener tu ubicación. Verificá los permisos del navegador.');
+            btn.textContent = '📍 Usar mi ubicación';
+            btn.disabled = false;
+        }
+    );
+}
+</script>
 
 {% endblock %}

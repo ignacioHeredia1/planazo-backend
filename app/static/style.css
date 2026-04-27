@@ -290,6 +290,43 @@ body {
 
 .clima-ignorar:hover { color: #666; }
 
+/* ── Mapa ── */
+.mapa-wrapper {
+    margin-bottom: 2rem;
+}
+
+.mapa-titulo {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #444;
+}
+
+#mapa {
+    width: 100%;
+    height: 350px;
+    border-radius: 12px;
+    border: 1px solid #e8e8e0;
+    z-index: 0;
+}
+
+/* ── Botón ubicación ── */
+.btn-ubicacion {
+    background: none;
+    border: 1px solid #6c63ff;
+    color: #6c63ff;
+    padding: 0.55rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-ubicacion:hover {
+    background: #6c63ff;
+    color: #fff;
+}
+
 /* ── Footer ── */
 footer {
     text-align: center;
