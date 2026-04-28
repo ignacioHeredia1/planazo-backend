@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planify</title>
+    <title>Planazo</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,6 +12,18 @@
         <div class="navbar-inner">
             <a href="/" class="logo">🎯 Planazo</a>
             <span class="tagline">Encontrá tu próximo plan</span>
+            <div class="navbar-links">
+                {% if request.session.get("usuario_id") %}
+                    <a href="/perfil" class="nav-btn nav-perfil">👤 Mi perfil</a>
+                    <a href="/logout" class="nav-btn">Cerrar sesión</a>
+                {% else %}
+                    <a href="/registro" class="nav-btn">Registrarse</a>
+                    <a href="/login" class="nav-btn nav-login">Iniciar sesión</a>
+                {% endif %}
+                 {% if request.session.get("admin_logueado") %}
+                    <a href="/admin" class="admin-link">⚙️ Admin</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
@@ -20,7 +32,7 @@
     </main>
 
     <footer>
-        <p>Planify © 2025</p>
+        <p>Planazo © 2025</p>
     </footer>
 
 </body>

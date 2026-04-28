@@ -85,7 +85,6 @@
                value="{{ filtros.km_max or '' }}">
     </div>
 
-    <!-- Campos ocultos para lat/lon del usuario -->
     <input type="hidden" name="lat_usuario" id="lat_usuario" value="{{ filtros.lat_usuario or '' }}">
     <input type="hidden" name="lon_usuario" id="lon_usuario" value="{{ filtros.lon_usuario or '' }}">
 
@@ -135,31 +134,44 @@
                     {% if plan.hora_inicio is not none and plan.hora_fin is not none %}
                     <span>🕐 {{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00</span>
                     {% endif %}
-
                     {% if plan.presupuesto_max %}
                     <span>💰 Hasta ${{ plan.presupuesto_max | int }}</span>
                     {% else %}
                     <span>💰 Gratis o sin límite</span>
                     {% endif %}
-
                     {% if plan.personas_min and plan.personas_max %}
                     <span>👥 {{ plan.personas_min }} - {{ plan.personas_max }} personas</span>
                     {% elif plan.personas_min %}
                     <span>👥 Desde {{ plan.personas_min }} persona{% if plan.personas_min != 1 %}s{% endif %}</span>
                     {% endif %}
-
                     {% if plan.direccion %}
                     <span>📍 {{ plan.direccion }}</span>
                     {% endif %}
-
                     {% if plan.clima_recomendado != 'cualquiera' %}
                     <span>🌤️ Mejor con clima {{ plan.clima_recomendado }}</span>
                     {% endif %}
                 </div>
 
-                <form method="post" action="/descartar/{{ plan.id }}">
-                    <button type="submit" class="btn-descartar">✕ No me interesa</button>
-                </form>
+                <div class="card-acciones">
+                    <!-- Favorito: solo si está logueado -->
+                    {% if usuario %}
+                        {% if plan.id in ids_favoritos %}
+                        <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                            <button type="submit" class="btn-fav activo">❤️ Guardado</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/favoritos/agregar/{{ plan.id }}">
+                            <button type="submit" class="btn-fav">🤍 Guardar</button>
+                        </form>
+                        {% endif %}
+                    {% else %}
+                        <a href="/login" class="btn-fav">🤍 Guardar</a>
+                    {% endif %}
+
+                    <form method="post" action="/descartar/{{ plan.id }}">
+                        <button type="submit" class="btn-descartar">✕ No me interesa</button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -177,7 +189,6 @@
     {% endif %}
 </section>
 
-<!-- LEAFLET -->
 {% if planes_con_ubicacion %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -185,63 +196,39 @@
     const planesConUbicacion = {{ planes_con_ubicacion | tojson }};
     const latUsuario = {{ filtros.lat_usuario or 'null' }};
     const lonUsuario = {{ filtros.lon_usuario or 'null' }};
-
-    // Centrar el mapa en el primer plan o en el usuario
     let centroLat = planesConUbicacion[0].latitud;
     let centroLon = planesConUbicacion[0].longitud;
-    if (latUsuario && lonUsuario) {
-        centroLat = latUsuario;
-        centroLon = lonUsuario;
-    }
-
+    if (latUsuario && lonUsuario) { centroLat = latUsuario; centroLon = lonUsuario; }
     const mapa = L.map('mapa').setView([centroLat, centroLon], 11);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(mapa);
-
-    // Marcador del usuario
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
     if (latUsuario && lonUsuario) {
-        L.circleMarker([latUsuario, lonUsuario], {
-            radius: 10,
-            color: '#6c63ff',
-            fillColor: '#6c63ff',
-            fillOpacity: 0.8
-        }).addTo(mapa).bindPopup('📍 Tu ubicación');
+        L.circleMarker([latUsuario, lonUsuario], { radius: 10, color: '#6c63ff', fillColor: '#6c63ff', fillOpacity: 0.8 })
+            .addTo(mapa).bindPopup('📍 Tu ubicación');
     }
-
-    // Marcadores de planes
     planesConUbicacion.forEach(plan => {
-        L.marker([plan.latitud, plan.longitud])
-            .addTo(mapa)
+        L.marker([plan.latitud, plan.longitud]).addTo(mapa)
             .bindPopup(`<strong>${plan.nombre}</strong><br>${plan.direccion || ''}`);
     });
 </script>
 {% endif %}
 
-<!-- Script para obtener ubicación del usuario -->
 <script>
 function obtenerUbicacion() {
-    if (!navigator.geolocation) {
-        alert('Tu navegador no soporta geolocalización.');
-        return;
-    }
+    if (!navigator.geolocation) { alert('Tu navegador no soporta geolocalización.'); return; }
     const btn = document.querySelector('.btn-ubicacion');
     btn.textContent = '⏳ Obteniendo ubicación...';
     btn.disabled = true;
-
     navigator.geolocation.getCurrentPosition(
         (pos) => {
             document.getElementById('lat_usuario').value = pos.coords.latitude;
             document.getElementById('lon_usuario').value = pos.coords.longitude;
             btn.textContent = '✅ Ubicación obtenida';
-            // Si no hay km_max puesto, ponemos 20 por defecto
             const kmInput = document.querySelector('input[name="km_max"]');
             if (!kmInput.value) kmInput.value = 20;
             document.getElementById('btn-buscar').click();
         },
         () => {
-            alert('No se pudo obtener tu ubicación. Verificá los permisos del navegador.');
+            alert('No se pudo obtener tu ubicación.');
             btn.textContent = '📍 Usar mi ubicación';
             btn.disabled = false;
         }

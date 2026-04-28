@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="perfil-wrapper">
+    <div class="perfil-header">
+        <div class="perfil-avatar">{{ usuario.nombre[0] | upper }}</div>
+        <div>
+            <h1>{{ usuario.nombre }}</h1>
+            <p class="login-sub">{{ usuario.email }}</p>
+        </div>
+    </div>
+
+    <!-- FAVORITOS -->
+    <div class="perfil-seccion">
+        <h2>❤️ Mis favoritos</h2>
+        {% if favoritos %}
+            <div class="grid-planes">
+                {% for plan in favoritos %}
+                <div class="card-plan">
+                    <div class="card-header">
+                        <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
+                            {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
+                        </span>
+                        {% if plan.acepta_mascotas %}
+                        <span class="badge badge-mascota">🐾 Mascotas OK</span>
+                        {% endif %}
+                    </div>
+                    <h2 class="card-titulo">{{ plan.nombre }}</h2>
+                    <p class="card-desc">{{ plan.descripcion }}</p>
+                    <div class="card-info">
+                        {% if plan.direccion %}
+                        <span>📍 {{ plan.direccion }}</span>
+                        {% endif %}
+                        {% if plan.presupuesto_max %}
+                        <span>💰 Hasta ${{ plan.presupuesto_max | int }}</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                        <button type="submit" class="btn-descartar">✕ Quitar de favoritos</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="sin-fav">Todavía no tenés planes favoritos. ¡Explorá y guardá los que te gusten!</p>
+        {% endif %}
+    </div>
+
+    <div class="perfil-acciones">
+        <a href="/" class="btn-buscar">Explorar planes</a>
+        <a href="/logout" class="btn-limpiar">Cerrar sesión</a>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="admin-header">
+    <h1>{% if plan %}Editar plan{% else %}Nuevo plan{% endif %}</h1>
+    <a href="/admin" class="btn-limpiar">← Volver al panel</a>
+</div>
+
+<form class="form-admin" method="post"
+      action="{% if plan %}/admin/editar/{{ plan.id }}{% else %}/admin/nuevo{% endif %}">
+
+    <div class="form-grid">
+
+        <div class="form-grupo full">
+            <label>Nombre del plan *</label>
+            <input type="text" name="nombre" required
+                   value="{{ plan.nombre if plan else '' }}"
+                   placeholder="ej: Picnic en el parque">
+        </div>
+
+        <div class="form-grupo full">
+            <label>Descripción</label>
+            <textarea name="descripcion" rows="3"
+                      placeholder="Describí el plan brevemente...">{{ plan.descripcion if plan else '' }}</textarea>
+        </div>
+
+        <div class="form-grupo">
+            <label>Hora de inicio (0-23)</label>
+            <input type="number" name="hora_inicio" min="0" max="23"
+                   value="{{ plan.hora_inicio if plan and plan.hora_inicio is not none else '' }}"
+                   placeholder="ej: 10">
+        </div>
+
+        <div class="form-grupo">
+            <label>Hora de fin (0-23)</label>
+            <input type="number" name="hora_fin" min="0" max="23"
+                   value="{{ plan.hora_fin if plan and plan.hora_fin is not none else '' }}"
+                   placeholder="ej: 18">
+        </div>
+
+        <div class="form-grupo">
+            <label>Presupuesto mínimo ($)</label>
+            <input type="number" name="presupuesto_min" min="0"
+                   value="{{ plan.presupuesto_min if plan else '0' }}"
+                   placeholder="ej: 0">
+        </div>
+
+        <div class="form-grupo">
+            <label>Presupuesto máximo ($)</label>
+            <input type="number" name="presupuesto_max" min="0"
+                   value="{{ plan.presupuesto_max if plan and plan.presupuesto_max is not none else '' }}"
+                   placeholder="ej: 5000 (vacío = sin límite)">
+        </div>
+
+        <div class="form-grupo">
+            <label>Personas mínimas</label>
+            <input type="number" name="personas_min" min="1"
+                   value="{{ plan.personas_min if plan else '1' }}"
+                   placeholder="ej: 1">
+        </div>
+
+        <div class="form-grupo">
+            <label>Personas máximas</label>
+            <input type="number" name="personas_max" min="1"
+                   value="{{ plan.personas_max if plan and plan.personas_max is not none else '' }}"
+                   placeholder="ej: 10 (vacío = sin límite)">
+        </div>
+
+        <div class="form-grupo">
+            <label>¿Acepta mascotas?</label>
+            <select name="acepta_mascotas">
+                <option value="false" {% if plan and not plan.acepta_mascotas %}selected{% endif %}>No</option>
+                <option value="true"  {% if plan and plan.acepta_mascotas %}selected{% endif %}>Sí</option>
+            </select>
+        </div>
+
+        <div class="form-grupo">
+            <label>¿Es exterior?</label>
+            <select name="es_exterior">
+                <option value="true"  {% if not plan or plan.es_exterior %}selected{% endif %}>Aire libre</option>
+                <option value="false" {% if plan and not plan.es_exterior %}selected{% endif %}>Cerrado</option>
+            </select>
+        </div>
+
+        <div class="form-grupo">
+            <label>Clima recomendado</label>
+            <select name="clima_recomendado">
+                <option value="cualquiera" {% if not plan or plan.clima_recomendado == 'cualquiera' %}selected{% endif %}>Cualquiera</option>
+                <option value="soleado"    {% if plan and plan.clima_recomendado == 'soleado' %}selected{% endif %}>Soleado</option>
+                <option value="nublado"    {% if plan and plan.clima_recomendado == 'nublado' %}selected{% endif %}>Nublado</option>
+                <option value="lluvioso"   {% if plan and plan.clima_recomendado == 'lluvioso' %}selected{% endif %}>Lluvioso</option>
+            </select>
+        </div>
+
+        <!-- DIRECCIÓN CON BÚSQUEDA AUTOMÁTICA -->
+        <div class="form-grupo full">
+            <label>Dirección</label>
+            <div class="direccion-wrapper">
+                <input type="text" name="direccion" id="direccion"
+                       value="{{ plan.direccion if plan and plan.direccion else '' }}"
+                       placeholder="ej: Parque Centenario, Buenos Aires">
+                <button type="button" class="btn-buscar-dir" onclick="buscarDireccion()">
+                    🔍 Buscar
+                </button>
+            </div>
+            <span class="dir-estado" id="dir-estado"></span>
+        </div>
+
+        <!-- Latitud y Longitud ocultas, se llenan automáticamente -->
+        <input type="hidden" name="latitud" id="latitud"
+               value="{{ plan.latitud if plan and plan.latitud is not none else '' }}">
+        <input type="hidden" name="longitud" id="longitud"
+               value="{{ plan.longitud if plan and plan.longitud is not none else '' }}">
+
+        <!-- Mini mapa para confirmar la ubicación -->
+        <div class="form-grupo full" id="mapa-container" style="display:none;">
+            <label>Ubicación en el mapa</label>
+            <div id="mapa-admin" style="height: 250px; border-radius: 10px; border: 1px solid #ddd;"></div>
+        </div>
+
+    </div>
+
+    <div class="form-botones">
+        <button type="submit" class="btn-buscar">
+            {% if plan %}Guardar cambios{% else %}Agregar plan{% endif %}
+        </button>
+        <a href="/admin" class="btn-limpiar">Cancelar</a>
+    </div>
+
+</form>
+
+<!-- Leaflet para el mini mapa -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    let mapaAdmin = null;
+    let marcador = null;
+
+    // Si ya hay coordenadas (edición), mostrar el mapa
+    const latInicial = "{{ plan.latitud if plan and plan.latitud is not none else '' }}";
+    const lonInicial = "{{ plan.longitud if plan and plan.longitud is not none else '' }}";
+
+    if (latInicial && lonInicial) {
+        mostrarMapa(parseFloat(latInicial), parseFloat(lonInicial));
+    }
+
+    async function buscarDireccion() {
+        const direccion = document.getElementById('direccion').value.trim();
+        const estado = document.getElementById('dir-estado');
+
+        if (!direccion) {
+            estado.textContent = '⚠️ Escribí una dirección primero.';
+            estado.style.color = '#e65100';
+            return;
+        }
+
+        estado.textContent = '⏳ Buscando...';
+        estado.style.color = '#888';
+
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(direccion)}&format=json&limit=1`;
+            const res = await fetch(url, {
+                headers: { 'Accept-Language': 'es' }
+            });
+            const data = await res.json();
+
+            if (data.length === 0) {
+                estado.textContent = '❌ No se encontró la dirección. Intentá ser más específico.';
+                estado.style.color = '#c62828';
+                return;
+            }
+
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            document.getElementById('latitud').value = lat;
+            document.getElementById('longitud').value = lon;
+
+            estado.textContent = `✅ Ubicación encontrada: ${data[0].display_name}`;
+            estado.style.color = '#2d7a3a';
+
+            mostrarMapa(lat, lon);
+
+        } catch (e) {
+            estado.textContent = '❌ Error al buscar. Revisá tu conexión.';
+            estado.style.color = '#c62828';
+        }
+    }
+
+    function mostrarMapa(lat, lon) {
+        document.getElementById('mapa-container').style.display = 'block';
+
+        if (!mapaAdmin) {
+            mapaAdmin = L.map('mapa-admin').setView([lat, lon], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(mapaAdmin);
+        } else {
+            mapaAdmin.setView([lat, lon], 15);
+        }
+
+        if (marcador) marcador.remove();
+        marcador = L.marker([lat, lon]).addTo(mapaAdmin);
+    }
+
+    // Buscar con Enter en el campo dirección
+    document.getElementById('direccion').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarDireccion();
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="admin-header">
+    <h1>Panel de administración</h1>
+    <div style="display:flex; gap:0.75rem; align-items:center;">
+        <a href="/admin/nuevo" class="btn-buscar">+ Agregar plan</a>
+        <a href="/admin/logout" class="btn-eliminar" style="padding: 0.5rem 1rem; text-decoration:none;">Cerrar sesión</a>
+    </div>
+</div>
+
+{% if mensaje %}
+<div class="alert-ok">✅ {{ mensaje }}</div>
+{% endif %}
+
+<div class="tabla-wrapper">
+    <table class="tabla-planes">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Horario</th>
+                <th>Presupuesto</th>
+                <th>Personas</th>
+                <th>Mascotas</th>
+                <th>Lugar</th>
+                <th>Clima</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for plan in planes %}
+            <tr>
+                <td>{{ plan.id }}</td>
+                <td><strong>{{ plan.nombre }}</strong></td>
+                <td>
+                    {% if plan.hora_inicio is not none %}
+                        {{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if plan.presupuesto_max %}
+                        ${{ plan.presupuesto_min | int }} - ${{ plan.presupuesto_max | int }}
+                    {% else %}
+                        Gratis
+                    {% endif %}
+                </td>
+                <td>{{ plan.personas_min }} - {{ plan.personas_max or '∞' }}</td>
+                <td>{% if plan.acepta_mascotas %}✅{% else %}❌{% endif %}</td>
+                <td>{% if plan.es_exterior %}🌿 Exterior{% else %}🏠 Interior{% endif %}</td>
+                <td>{{ plan.clima_recomendado | capitalize }}</td>
+                <td class="acciones">
+                    <a href="/admin/editar/{{ plan.id }}" class="btn-editar">✏️ Editar</a>
+                    <form method="post" action="/admin/eliminar/{{ plan.id }}"
+                          onsubmit="return confirm('¿Seguro que querés eliminar este plan?')">
+                        <button type="submit" class="btn-eliminar">🗑️ Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="admin-footer">
+    <a href="/" class="btn-limpiar">← Volver a la página principal</a>
+</div>
+
+{% endblock %}
