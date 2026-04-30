@@ -139,16 +139,18 @@
             </div>
         </div>
 
-        <!-- Distancia -->
-        <div class="space-y-2">
+        <!-- Distancia (Solo si hay ubicación) -->
+        {% if filtros.lat_usuario %}
+        <div class="space-y-2 animate__animated animate__fadeIn">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1 flex items-center gap-2">
                 <span>📏</span> Distancia (km)
             </label>
-            <div class="group flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all">
-                <input type="number" name="km_max" min="1" placeholder="ej: 10" class="bg-transparent border-none outline-none focus:ring-0 w-full text-sm font-semibold text-slate-700 dark:text-slate-200"
+            <div class="group flex items-center bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/20 rounded-2xl px-4 py-3 focus-within:ring-4 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 transition-all">
+                <input type="number" name="km_max" min="1" placeholder="ej: 10" class="bg-transparent border-none outline-none focus:ring-0 w-full text-sm font-semibold text-emerald-700 dark:text-emerald-400"
                        value="{{ filtros.km_max or '' }}" style="border: none !important; outline: none !important;">
             </div>
         </div>
+        {% endif %}
 
     </div>
 
@@ -174,6 +176,9 @@
     <input type="hidden" name="lat_usuario" id="lat_usuario" value="{{ filtros.lat_usuario or '' }}">
     <input type="hidden" name="lon_usuario" id="lon_usuario" value="{{ filtros.lon_usuario or '' }}">
     <input type="hidden" name="regenerar" id="regenerar" value="">
+    {% if not filtros.lat_usuario %}
+    <input type="hidden" name="km_max" value="{{ filtros.km_max or '50' }}">
+    {% endif %}
 </form>
 
 <!-- MAPA -->

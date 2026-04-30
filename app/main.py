@@ -652,6 +652,7 @@ def admin_crear_plan(
     clima_recomendado: str = Form("cualquiera"),
     categoria: str = Form(""),
     direccion: str = Form(""), latitud: str = Form(""), longitud: str = Form(""),
+    permite_reservas: str = Form("false"),
     imagen_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -673,7 +674,8 @@ def admin_crear_plan(
         categoria=categoria or None,
         direccion=direccion or None,
         latitud=parse_float(latitud), longitud=parse_float(longitud),
-        creador_id=creador
+        creador_id=creador,
+        permite_reservas=permite_reservas == "true"
     )
 
     if imagen_file and imagen_file.filename:
@@ -712,6 +714,7 @@ def admin_actualizar_plan(
     clima_recomendado: str = Form("cualquiera"),
     categoria: str = Form(""),
     direccion: str = Form(""), latitud: str = Form(""), longitud: str = Form(""),
+    permite_reservas: str = Form("false"),
     imagen_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -738,6 +741,7 @@ def admin_actualizar_plan(
     plan.direccion = direccion or None
     plan.latitud = parse_float(latitud)
     plan.longitud = parse_float(longitud)
+    plan.permite_reservas = permite_reservas == "true"
     
     if imagen_file and imagen_file.filename:
         os.makedirs("app/static/uploads", exist_ok=True)

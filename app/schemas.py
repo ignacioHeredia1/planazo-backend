@@ -48,7 +48,9 @@ class PlanCreate(BaseModel):
     longitud: Optional[float] = None
     direccion: Optional[str] = None
 
+    categoria: Optional[str] = None
     clima_recomendado: str = "cualquiera"
+    permite_reservas: bool = False
 
 
 # Lo que devolvemos al consultar planes

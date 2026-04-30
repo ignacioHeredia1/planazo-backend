@@ -2,55 +2,91 @@
 
 {% block content %}
 
-<div class="perfil-wrapper">
-    <div class="perfil-header">
-        <div class="perfil-avatar">{{ usuario.nombre[0] | upper }}</div>
-        <div>
-            <h1>{{ usuario.nombre }}</h1>
-            <p class="login-sub">{{ usuario.email }}</p>
+<div class="max-w-6xl mx-auto px-4 py-12 animate__animated animate__fadeIn">
+    
+    <!-- Perfil Header -->
+    <div class="bg-white dark:bg-slate-900 rounded-[3rem] p-10 mb-12 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col md:flex-row items-center gap-8">
+        <div class="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-indigo-200 dark:shadow-none">
+            {{ usuario.nombre[0] | upper }}
+        </div>
+        <div class="text-center md:text-left flex-1">
+            <h1 class="text-4xl font-black text-slate-800 dark:text-white mb-2">{{ usuario.nombre }}</h1>
+            <p class="text-slate-500 dark:text-slate-400 font-bold tracking-wide uppercase text-xs">{{ usuario.email }}</p>
+            <div class="mt-4 flex flex-wrap justify-center md:justify-start gap-4">
+                <div class="bg-indigo-50 dark:bg-indigo-500/10 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-sm font-bold">
+                    ❤️ {{ favoritos|length }} favoritos guardados
+                </div>
+                <a href="/logout" class="text-slate-400 hover:text-red-500 font-bold text-sm flex items-center gap-2 transition-colors">
+                    <span>🚪</span> Cerrar sesión
+                </a>
+            </div>
         </div>
     </div>
 
-    <!-- FAVORITOS -->
-    <div class="perfil-seccion">
-        <h2>❤️ Mis favoritos</h2>
+    <!-- Sección Favoritos -->
+    <div class="space-y-8">
+        <div class="flex items-center justify-between">
+            <h2 class="text-3xl font-black text-slate-800 dark:text-white">Tus planes favoritos</h2>
+            <a href="/" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 dark:shadow-none text-sm">
+                Explorar más
+            </a>
+        </div>
+
         {% if favoritos %}
-            <div class="grid-planes">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {% for plan in favoritos %}
-                <div class="card-plan">
-                    <div class="card-header">
-                        <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
-                            {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
-                        </span>
-                        {% if plan.acepta_mascotas %}
-                        <span class="badge badge-mascota">🐾 Mascotas OK</span>
-                        {% endif %}
+                <div class="group bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
+                    
+                    <!-- Imagen miniatura -->
+                    <div class="h-48 w-full bg-cover bg-center relative" style="background-image: url('{{ plan.imagen_url or '/static/img/placeholder.jpg' }}')">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                        <div class="absolute top-4 right-4">
+                            <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                                <button type="submit" class="p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-red-500 transition-colors border border-white/30" title="Quitar de favoritos">
+                                    ❤️
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                    <h2 class="card-titulo">{{ plan.nombre }}</h2>
-                    <p class="card-desc">{{ plan.descripcion }}</p>
-                    <div class="card-info">
-                        {% if plan.direccion %}
-                        <span>📍 {{ plan.direccion }}</span>
-                        {% endif %}
-                        {% if plan.presupuesto_max %}
-                        <span>💰 Hasta ${{ plan.presupuesto_max | int }}</span>
-                        {% endif %}
+
+                    <div class="p-8">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-lg">{{ plan.categoria or 'PLAN' }}</span>
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {% if plan.es_exterior %}🌿 Exterior{% else %}🏠 Interior{% endif %}
+                            </span>
+                        </div>
+                        
+                        <a href="/plan/{{ plan.id }}" class="block group-hover:text-indigo-600 transition-colors">
+                            <h3 class="text-xl font-black text-slate-800 dark:text-white mb-2 line-clamp-1">{{ plan.nombre }}</h3>
+                        </a>
+                        
+                        <p class="text-slate-500 dark:text-slate-400 text-sm line-clamp-2 mb-6">{{ plan.descripcion }}</p>
+
+                        <div class="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
+                            <span class="text-sm font-black text-slate-700 dark:text-slate-300">
+                                {% if plan.presupuesto_max %}${{ plan.presupuesto_max | int }}{% else %}Gratis{% endif %}
+                            </span>
+                            <a href="/plan/{{ plan.id }}" class="text-indigo-600 font-black text-sm hover:underline italic">
+                                Ver detalle →
+                            </a>
+                        </div>
                     </div>
-                    <form method="post" action="/favoritos/quitar/{{ plan.id }}">
-                        <button type="submit" class="btn-descartar">✕ Quitar de favoritos</button>
-                    </form>
                 </div>
                 {% endfor %}
             </div>
         {% else %}
-            <p class="sin-fav">Todavía no tenés planes favoritos. ¡Explorá y guardá los que te gusten!</p>
+            <div class="py-20 text-center bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-700">
+                <div class="text-5xl mb-6">🏜️</div>
+                <h3 class="text-xl font-black text-slate-400 mb-2">¡Está todo muy vacío por acá!</h3>
+                <p class="text-slate-400 mb-8 max-w-xs mx-auto text-sm">Explorá los mejores planes en tu zona y guardalos acá para no perderlos.</p>
+                <a href="/" class="inline-block bg-indigo-600 text-white font-black py-4 px-10 rounded-2xl hover:bg-indigo-700 transition-colors shadow-xl shadow-indigo-100 dark:shadow-none">
+                    Empezar a explorar
+                </a>
+            </div>
         {% endif %}
     </div>
 
-    <div class="perfil-acciones">
-        <a href="/" class="btn-buscar">Explorar planes</a>
-        <a href="/logout" class="btn-limpiar">Cerrar sesión</a>
-    </div>
 </div>
 
 {% endblock %}

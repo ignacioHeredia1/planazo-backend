@@ -44,6 +44,7 @@ class Plan(Base):
     categoria = Column(String, nullable=True)  # romantico, familiar, aventura, gastronomia, cultural, deportivo, relax, nocturno
     clima_recomendado = Column(String, default="cualquiera")
     creador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    permite_reservas = Column(Boolean, default=False)
 
     descartes = relationship("Descarte", back_populates="plan")
     favoritos = relationship("Favorito", back_populates="plan")

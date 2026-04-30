@@ -116,7 +116,14 @@
                 <option value="relax"      {% if plan and plan.categoria == 'relax' %}selected{% endif %}>😌 Relax</option>
                 <option value="nocturno"   {% if plan and plan.categoria == 'nocturno' %}selected{% endif %}>🌙 Nocturno</option>
             </select>
+            <div class="form-grupo">
+            <label>¿Permitir reservas?</label>
+            <select name="permite_reservas">
+                <option value="false" {% if plan and not plan.permite_reservas %}selected{% endif %}>No (solo info)</option>
+                <option value="true"  {% if plan and plan.permite_reservas %}selected{% endif %}>Sí (B2B2C activo)</option>
+            </select>
         </div>
+    </div>
 
         <!-- DIRECCIÓN CON BÚSQUEDA AUTOMÁTICA -->
         <div class="form-grupo full">
