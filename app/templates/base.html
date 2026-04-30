@@ -3,37 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planazo</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
+    <title>Planazo - Encontrá tu próximo plan</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN para prototipado rápido y potente) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX para navegación sin recargas -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Animate.css para micro-interacciones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
-    <nav class="navbar">
-        <div class="navbar-inner">
-            <a href="/" class="logo">🎯 Planazo</a>
-            <span class="tagline">Encontrá tu próximo plan</span>
-            <div class="navbar-links">
-                {% if request.session.get("usuario_id") %}
-                    <a href="/perfil" class="nav-btn nav-perfil">👤 Mi perfil</a>
-                    <a href="/logout" class="nav-btn">Cerrar sesión</a>
-                {% else %}
-                    <a href="/registro" class="nav-btn">Registrarse</a>
-                    <a href="/login" class="nav-btn nav-login">Iniciar sesión</a>
-                {% endif %}
-                 {% if request.session.get("admin_logueado") %}
-                    <a href="/admin" class="admin-link">⚙️ Admin</a>
-                {% endif %}
+    <link rel="stylesheet" href="/static/style.css?v=1.3">
+    <style>
+        /* Ocultar flechas en inputs de número */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        
+        /* Ajustes para inputs de tiempo */
+        input[type="time"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(0.5);
+        }
+    </style>
+    
+    <script>
+        // Configuración de Tailwind para soportar el modo oscuro de Planazo
+        tailwind.config = {
+          darkMode: ['class', '[data-theme="dark"]'],
+          theme: {
+            extend: {
+              colors: {
+                primary: '#6366f1',
+                secondary: '#a855f7',
+                surface: 'var(--surface)',
+                border: 'var(--border)',
+              },
+              fontFamily: {
+                sans: ['Inter', 'sans-serif'],
+              },
+            }
+          }
+        }
+        
+        // Evitar FOUC
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 font-sans transition-colors duration-300">
+
+    <nav class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-3">
+                <div class="flex items-center gap-4">
+                    <a href="/" class="text-2xl font-extrabold hover:scale-105 transition-transform group overflow-visible">
+                        <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 leading-none py-1">Planazo</span>
+                    </a>
+                    <span class="hidden md:block text-slate-500 text-sm font-medium">Encontrá tu próximo plan</span>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    {% if request.session.get("usuario_id") %}
+                        {% if request.session.get("usuario_rol") == "empresa" %}
+                            <a href="/admin" class="hidden sm:flex items-center px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-sm font-bold hover:bg-amber-200 transition-colors">
+                                🏢 Panel Empresa
+                            </a>
+                        {% else %}
+                            <a href="/perfil" class="flex items-center px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-sm font-bold hover:bg-indigo-100 transition-colors">
+                                👤 Mi perfil
+                            </a>
+                        {% endif %}
+                        <a href="/logout" class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-red-500 transition-colors">Cerrar sesión</a>
+                    {% else %}
+                        <a href="/registro" class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-indigo-600">Registrarse</a>
+                        <a href="/login" class="px-5 py-2 rounded-full bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-all">
+                            Iniciar sesión
+                        </a>
+                    {% endif %}
+                    
+                    {% if request.session.get("admin_logueado") %}
+                        <a href="/admin" class="text-slate-400 hover:text-slate-600 text-xs uppercase tracking-widest font-bold">Admin</a>
+                    {% endif %}
+
+                    <button id="theme-toggle" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-lg hover:rotate-12 transition-transform">🌙</button>
+                </div>
             </div>
         </div>
     </nav>
 
-    <main class="container">
-        {% block content %}{% endblock %}
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
+        <div class="animate__animated animate__fadeIn">
+            {% block content %}{% endblock %}
+        </div>
     </main>
 
-    <footer>
-        <p>Planazo © 2025</p>
+    <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-slate-500 text-sm">&copy; 2026 <span class="font-bold text-indigo-600">Planazo</span> - Hecho con ❤️ para tu próxima aventura</p>
+        </div>
     </footer>
 
+    <!-- Contenedor para notificaciones Toast -->
+    <div id="toast-container"></div>
+
+    <script>
+        // Sistema de Toasts
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            // Trigger animacion
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Ocultar y remover
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Interceptar formularios de Favoritos y Descartar
+        document.addEventListener('submit', async (e) => {
+            const form = e.target;
+            const action = form.getAttribute('action');
+            
+            // Si es un formulario de favoritos o descartar
+            if (action && (action.includes('/favoritos/') || action.includes('/descartar/'))) {
+                e.preventDefault(); // Evitar recarga
+                
+                try {
+                    const response = await fetch(action, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' },
+                        body: new FormData(form)
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        showToast(data.mensaje);
+                        
+                        // Cambiar estilo del boton si es favorito
+                        const btn = form.querySelector('button');
+                        if (action.includes('/favoritos/agregar/')) {
+                            form.setAttribute('action', action.replace('/agregar/', '/quitar/'));
+                            btn.className = 'btn-fav activo';
+                            btn.innerHTML = '❤️ Guardado';
+                        } else if (action.includes('/favoritos/quitar/')) {
+                            form.setAttribute('action', action.replace('/quitar/', '/agregar/'));
+                            btn.className = 'btn-fav';
+                            btn.innerHTML = '🤍 Guardar';
+                        } else if (action.includes('/descartar/')) {
+                            // Si descarta desde index, ocultar la tarjeta entera
+                            const card = form.closest('.card-plan');
+                            if (card) {
+                                card.style.transition = 'opacity 0.3s';
+                                card.style.opacity = '0';
+                                setTimeout(() => card.remove(), 300);
+                            }
+                        }
+                    } else if (response.redirected) {
+                        // Si redirige a login
+                        window.location.href = response.url;
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+            }
+        });
+        // Lógica del Dark Mode
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        
+        function updateThemeIcon() {
+            if (document.documentElement.getAttribute('data-theme') === 'dark') {
+                themeToggleBtn.textContent = '☀️';
+            } else {
+                themeToggleBtn.textContent = '🌙';
+            }
+        }
+        
+        // Actualizar el icono al cargar
+        updateThemeIcon();
+
+        themeToggleBtn.addEventListener('click', () => {
+            let currentTheme = document.documentElement.getAttribute('data-theme');
+            if (currentTheme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            updateThemeIcon();
+        });
+    </script>
 </body>
 </html>

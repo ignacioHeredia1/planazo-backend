@@ -10,7 +10,10 @@
 
         <!-- HEADER -->
         <div class="detalle-header">
-            <div class="card-header">
+            {% if plan.imagen_url %}
+            <div class="detalle-imagen" style="background-image: url('{{ plan.imagen_url }}')"></div>
+            {% endif %}
+            <div class="card-header" style="margin-top: {% if plan.imagen_url %}1.5rem{% else %}0{% endif %};">
                 <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
                     {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
                 </span>
@@ -26,6 +29,19 @@
             </div>
             <h1 class="detalle-titulo">{{ plan.nombre }}</h1>
             <p class="detalle-desc">{{ plan.descripcion }}</p>
+
+            <!-- PROMEDIO ESTRELLAS -->
+            {% if promedio %}
+            <div class="detalle-promedio">
+                <span class="estrellas-display">
+                    {% for i in range(1, 6) %}
+                        {% if i <= promedio | int %}⭐{% else %}☆{% endif %}
+                    {% endfor %}
+                </span>
+                <span class="promedio-num">{{ promedio }}/5</span>
+                <span class="promedio-cant">({{ valoraciones | length }} reseña{% if valoraciones | length != 1 %}s{% endif %})</span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- INFO -->
@@ -65,10 +81,28 @@
                 <span class="detalle-info-valor">{{ plan.direccion }}</span>
             </div>
             {% endif %}
+
+            {% if clima_en_vivo %}
+            <div class="detalle-info-item" style="background: var(--surface); padding: 0.5rem; border-radius: var(--radius); border: 1px dashed var(--border); margin-top: 0.5rem;">
+                <span class="detalle-info-label">🌤️ Clima ahora mismo:</span>
+                <span class="detalle-info-valor" style="color: var(--primary); font-weight: 600;">
+                    {% if clima_en_vivo == 'soleado' %}☀️ Soleado
+                    {% elif clima_en_vivo == 'nublado' %}☁️ Nublado
+                    {% elif clima_en_vivo == 'lluvioso' %}🌧️ Lluvioso
+                    {% endif %}
+                    
+                    {% if clima_en_vivo == 'lluvioso' and plan.es_exterior %}
+                        <br><span style="font-size: 0.8rem; color: #e11d48; font-weight: normal;">⚠️ Ojo: el plan es al aire libre y parece que llueve.</span>
+                    {% elif clima_en_vivo == 'soleado' and plan.es_exterior %}
+                        <br><span style="font-size: 0.8rem; color: #16a34a; font-weight: normal;">✅ ¡Día perfecto para este plan al aire libre!</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- MAPA -->
-        {% if plan.latitud and plan.longitud %}
+        {% if plan.latitud and plan.longitud or plan.direccion %}
         <div class="detalle-mapa">
             <h3 class="mapa-titulo">📍 Ubicación</h3>
             <div id="mapa-detalle"></div>
@@ -97,21 +131,152 @@
         </div>
 
     </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECCIÓN VALORACIONES                        -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="valoraciones-wrapper">
+
+        <!-- FORMULARIO para valorar -->
+        <div class="valoracion-form-card">
+            <h2 class="valoracion-titulo">
+                {% if mi_valoracion %}✏️ Editá tu reseña{% else %}⭐ Dejá tu reseña{% endif %}
+            </h2>
+
+            {% if usuario %}
+                <form method="post" action="/plan/{{ plan.id }}/valorar" class="form-valoracion" id="form-valoracion">
+                    <div class="estrellas-selector" id="estrellas-selector">
+                        {% for i in range(5, 0, -1) %}
+                        <input type="radio" name="puntuacion" id="star{{ i }}" value="{{ i }}"
+                               {% if mi_valoracion and mi_valoracion.puntuacion == i %}checked{% endif %}
+                               required>
+                        <label for="star{{ i }}" title="{{ i }} estrella{% if i != 1 %}s{% endif %}">★</label>
+                        {% endfor %}
+                    </div>
+
+                    <textarea name="comentario" class="valoracion-textarea"
+                              placeholder="Contá tu experiencia... (opcional)"
+                              maxlength="500">{% if mi_valoracion and mi_valoracion.comentario %}{{ mi_valoracion.comentario }}{% endif %}</textarea>
+
+                    <div class="valoracion-acciones">
+                        <button type="submit" class="btn-buscar">
+                            {% if mi_valoracion %}Actualizar reseña{% else %}Publicar reseña{% endif %}
+                        </button>
+                        {% if mi_valoracion %}
+                        <form method="post" action="/plan/{{ plan.id }}/valoracion/eliminar" style="margin:0;">
+                            <button type="submit" class="btn-descartar">Eliminar mi reseña</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </form>
+            {% else %}
+                <p class="valoracion-login-msg">
+                    <a href="/login">Iniciá sesión</a> para dejar una reseña.
+                </p>
+            {% endif %}
+        </div>
+
+        <!-- LISTA DE RESEÑAS -->
+        {% if valoraciones %}
+        <div class="valoraciones-lista">
+            <h3 class="valoraciones-lista-titulo">💬 Reseñas ({{ valoraciones | length }})</h3>
+            {% for v in valoraciones %}
+            <div class="valoracion-item {% if usuario and v.usuario_id == usuario.id %}valoracion-propia{% endif %}">
+                <div class="valoracion-header">
+                    <div class="valoracion-avatar">{{ v.usuario.nombre[0] | upper }}</div>
+                    <div class="valoracion-meta">
+                        <span class="valoracion-nombre">{{ v.usuario.nombre }}</span>
+                        <span class="valoracion-fecha">{{ v.fecha.strftime('%d/%m/%Y') }}</span>
+                    </div>
+                    <div class="valoracion-estrellas">
+                        {% for i in range(1, 6) %}
+                            {% if i <= v.puntuacion %}⭐{% else %}<span class="estrella-vacia">☆</span>{% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if v.comentario %}
+                <p class="valoracion-comentario">{{ v.comentario }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="valoraciones-empty">
+            <p>Todavía no hay reseñas. ¡Sé el primero en valorar este plan!</p>
+        </div>
+        {% endif %}
+
+    </div>
 </div>
 
-{% if plan.latitud and plan.longitud %}
+<!-- PLANES SIMILARES -->
+{% if planes_similares %}
+<div class="similares-wrapper" style="max-width: 900px; margin: 2rem auto;">
+    <h3 class="top-titulo" style="margin-bottom: 1rem;">👀 Porque estás viendo esto, tal vez te interese...</h3>
+    <div class="top-grid">
+        {% for tp in planes_similares %}
+        <a href="/plan/{{ tp.id }}" class="top-card">
+            <div class="top-card-img" style="background-image: url('{{ tp.imagen_url or '' }}')"></div>
+            <div class="top-card-info">
+                <span class="top-card-nombre">{{ tp.nombre }}</span>
+                {% if tp.categoria %}
+                <span class="badge-cat badge-{{ tp.categoria }}">{{ tp.categoria | capitalize }}</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if plan.latitud and plan.longitud or plan.direccion %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const mapa = L.map('mapa-detalle').setView([{{ plan.latitud }}, {{ plan.longitud }}], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(mapa);
-    L.marker([{{ plan.latitud }}, {{ plan.longitud }}])
-        .addTo(mapa)
-        .bindPopup('<strong>{{ plan.nombre }}</strong><br>{{ plan.direccion or "" }}')
-        .openPopup();
+    function initMap(lat, lng) {
+        const mapa = L.map('mapa-detalle', {
+            maxBounds: [[-85, -180], [85, 180]],
+            maxBoundsViscosity: 1.0,
+            minZoom: 2
+        }).setView([lat, lng], 15);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            noWrap: true
+        }).addTo(mapa);
+        
+        L.marker([lat, lng])
+            .addTo(mapa)
+            .bindPopup('<strong>{{ plan.nombre }}</strong><br>{{ plan.direccion or "" }}')
+            .openPopup();
+    }
+
+    {% if plan.latitud and plan.longitud %}
+        initMap({{ plan.latitud }}, {{ plan.longitud }});
+    {% else %}
+        // Geocodificación por dirección usando Nominatim (OpenStreetMap)
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent('{{ plan.direccion }}')}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    initMap(data[0].lat, data[0].lon);
+                } else {
+                    const mapaDiv = document.getElementById('mapa-detalle');
+                    if (mapaDiv) {
+                        mapaDiv.innerHTML = '<p style="text-align:center; padding:2rem; color: var(--text-2);">No se pudo ubicar la dirección exacta en el mapa.</p>';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error("Error cargando mapa:", err);
+                const mapaDiv = document.getElementById('mapa-detalle');
+                if (mapaDiv) {
+                    mapaDiv.innerHTML = '<p style="text-align:center; padding:1rem;">Error de conexión con el mapa.</p>';
+                }
+            });
+    {% endif %}
 </script>
 {% endif %}
 
 {% endblock %}
+

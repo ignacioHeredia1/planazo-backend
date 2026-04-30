@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text, DateTime
+from datetime import datetime
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -10,9 +11,11 @@ class Usuario(Base):
     nombre = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    rol = Column(String, default="usuario")
 
     descartes = relationship("Descarte", back_populates="usuario")
     favoritos = relationship("Favorito", back_populates="usuario")
+    valoraciones = relationship("Valoracion", back_populates="usuario")
 
 
 class Plan(Base):
@@ -38,10 +41,13 @@ class Plan(Base):
     longitud = Column(Float, nullable=True)
     direccion = Column(String, nullable=True)
 
+    categoria = Column(String, nullable=True)  # romantico, familiar, aventura, gastronomia, cultural, deportivo, relax, nocturno
     clima_recomendado = Column(String, default="cualquiera")
+    creador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
     descartes = relationship("Descarte", back_populates="plan")
     favoritos = relationship("Favorito", back_populates="plan")
+    valoraciones = relationship("Valoracion", back_populates="plan")
 
 
 class Descarte(Base):
@@ -64,3 +70,17 @@ class Favorito(Base):
 
     usuario = relationship("Usuario", back_populates="favoritos")
     plan = relationship("Plan", back_populates="favoritos")
+
+
+class Valoracion(Base):
+    __tablename__ = "valoraciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("planes.id"), nullable=False)
+    puntuacion = Column(Integer, nullable=False)  # 1 a 5
+    comentario = Column(Text, nullable=True)
+    fecha = Column(DateTime, default=datetime.now)
+
+    usuario = relationship("Usuario", back_populates="valoraciones")
+    plan = relationship("Plan", back_populates="valoraciones")

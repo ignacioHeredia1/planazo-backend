@@ -7,7 +7,7 @@
     <a href="/admin" class="btn-limpiar">← Volver al panel</a>
 </div>
 
-<form class="form-admin" method="post"
+<form class="form-admin" method="post" enctype="multipart/form-data"
       action="{% if plan %}/admin/editar/{{ plan.id }}{% else %}/admin/nuevo{% endif %}">
 
     <div class="form-grid">
@@ -23,6 +23,16 @@
             <label>Descripción</label>
             <textarea name="descripcion" rows="3"
                       placeholder="Describí el plan brevemente...">{{ plan.descripcion if plan else '' }}</textarea>
+        </div>
+
+        <div class="form-grupo full">
+            <label>Subir Imagen del Plan</label>
+            <input type="file" name="imagen_file" accept="image/*" style="padding: 0.5rem; border: 1px dashed var(--border); border-radius: var(--radius-sm); width: 100%;">
+            {% if plan and plan.imagen_url %}
+            <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-2);">
+                Imagen actual: <a href="{{ plan.imagen_url }}" target="_blank" style="color: var(--primary);">Ver foto guardada</a>
+            </div>
+            {% endif %}
         </div>
 
         <div class="form-grupo">
@@ -90,6 +100,21 @@
                 <option value="soleado"    {% if plan and plan.clima_recomendado == 'soleado' %}selected{% endif %}>Soleado</option>
                 <option value="nublado"    {% if plan and plan.clima_recomendado == 'nublado' %}selected{% endif %}>Nublado</option>
                 <option value="lluvioso"   {% if plan and plan.clima_recomendado == 'lluvioso' %}selected{% endif %}>Lluvioso</option>
+            </select>
+        </div>
+
+        <div class="form-grupo">
+            <label>Categoría</label>
+            <select name="categoria">
+                <option value=""           {% if not plan or not plan.categoria %}selected{% endif %}>Sin categoría</option>
+                <option value="aventura"   {% if plan and plan.categoria == 'aventura' %}selected{% endif %}>🧗 Aventura</option>
+                <option value="familiar"   {% if plan and plan.categoria == 'familiar' %}selected{% endif %}>👨‍👩‍👧 Familiar</option>
+                <option value="romantico"  {% if plan and plan.categoria == 'romantico' %}selected{% endif %}>❤️ Romántico</option>
+                <option value="gastronomia" {% if plan and plan.categoria == 'gastronomia' %}selected{% endif %}>🍽️ Gastronomía</option>
+                <option value="cultural"   {% if plan and plan.categoria == 'cultural' %}selected{% endif %}>🎭 Cultural</option>
+                <option value="deportivo"  {% if plan and plan.categoria == 'deportivo' %}selected{% endif %}>⚽ Deportivo</option>
+                <option value="relax"      {% if plan and plan.categoria == 'relax' %}selected{% endif %}>😌 Relax</option>
+                <option value="nocturno"   {% if plan and plan.categoria == 'nocturno' %}selected{% endif %}>🌙 Nocturno</option>
             </select>
         </div>
 

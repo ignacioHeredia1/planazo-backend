@@ -1,23 +1,39 @@
-from fastapi import FastAPI, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+import math
+import os
+import shutil
+import uuid
+from pathlib import Path
+from typing import List, Optional
+
+from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from pathlib import Path
 from passlib.context import CryptContext
-import math
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 from app import models, schemas
-from app.database import engine, get_db
 from app.clima import obtener_clima_ciudad
+from app.database import engine, get_db
 from app.ia import generar_planes_ia
+from app.imagenes import obtener_imagen
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Planazo API", version="1.0")
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse(
+            request=request, name="404.html", context={"request": request}, status_code=404
+        )
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
 
 app.add_middleware(SessionMiddleware, secret_key="clave-super-secreta-planazo-2025")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -32,25 +48,23 @@ PLANES_MINIMOS = 10
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
 def hashear_password(password: str) -> str:
     return pwd_context.hash(password[:72])
-
 
 def verificar_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password[:72], hashed)
 
-
 def admin_requerido(request: Request) -> bool:
-    return bool(request.session.get("admin_logueado"))
+    return bool(request.session.get("admin_logueado")) or request.session.get("usuario_rol") == "empresa"
 
+def es_superadmin(request: Request) -> bool:
+    return bool(request.session.get("admin_logueado"))
 
 def get_usuario_sesion(request: Request, db: Session) -> Optional[models.Usuario]:
     usuario_id = request.session.get("usuario_id")
     if not usuario_id:
         return None
     return db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
-
 
 def get_or_create_usuario_invitado(db: Session):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == 1).first()
@@ -61,7 +75,6 @@ def get_or_create_usuario_invitado(db: Session):
         db.refresh(usuario)
     return usuario
 
-
 def distancia_km(lat1, lon1, lat2, lon2) -> float:
     R = 6371
     d_lat = math.radians(lat2 - lat1)
@@ -71,13 +84,17 @@ def distancia_km(lat1, lon1, lat2, lon2) -> float:
          math.sin(d_lon / 2) ** 2)
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-
 def parse_int(valor) -> Optional[int]:
+    if not valor:
+        return None
     try:
-        return int(valor) if valor and str(valor).strip() else None
+        # Si viene en formato HH:MM (del input type="time"), extraemos la hora
+        val_str = str(valor).strip()
+        if ":" in val_str:
+            return int(val_str.split(":")[0])
+        return int(val_str)
     except (ValueError, TypeError):
         return None
-
 
 def parse_float(valor) -> Optional[float]:
     try:
@@ -85,10 +102,9 @@ def parse_float(valor) -> Optional[float]:
     except (ValueError, TypeError):
         return None
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # PÁGINA PRINCIPAL
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
@@ -103,6 +119,7 @@ def index(
     lon_usuario: Optional[str] = None,
     km_max: Optional[str] = None,
     regenerar: Optional[str] = None,
+    categoria: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     usuario_sesion = get_usuario_sesion(request, db)
@@ -170,7 +187,15 @@ def index(
             (models.Plan.clima_recomendado == clima_a_filtrar)
         )
 
-    planes_db = query.all()
+    search_performed = any([
+        hora, presupuesto_max, cantidad_personas, acepta_mascotas,
+        es_exterior, clima, ciudad, categoria
+    ])
+
+    if not search_performed:
+        planes_db = []
+    else:
+        planes_db = query.all()
 
     if lat_float is not None and lon_float is not None and km_float is not None:
         planes_db = [
@@ -179,10 +204,41 @@ def index(
             distancia_km(lat_float, lon_float, p.latitud, p.longitud) <= km_float
         ]
 
+    # Top 5 planes mejor valorados (para la seccion destacada)
+    top_planes_raw = (
+        db.query(models.Plan, func.round(func.avg(models.Valoracion.puntuacion), 1).label("promedio"), func.count(models.Valoracion.id).label("cantidad"))
+        .join(models.Valoracion, models.Valoracion.plan_id == models.Plan.id)
+        .group_by(models.Plan.id)
+        .order_by(func.avg(models.Valoracion.puntuacion).desc())
+        .limit(5)
+        .all()
+    )
+    top_planes = [
+        {
+            "id": p.id,
+            "nombre": p.nombre,
+            "imagen_url": p.imagen_url or obtener_imagen(p.nombre),
+            "descripcion": p.descripcion,
+            "promedio": float(prom),
+            "cantidad": cant,
+            "categoria": p.categoria,
+        }
+        for p, prom, cant in top_planes_raw
+    ]
+
+    # Precalcular promedios de valoraciones
+    promedios = dict(
+        db.query(models.Valoracion.plan_id, func.round(func.avg(models.Valoracion.puntuacion), 1))
+        .filter(models.Valoracion.plan_id.in_([p.id for p in planes_db]))
+        .group_by(models.Valoracion.plan_id)
+        .all()
+    )
+
     planes = [
         {
             "id": p.id,
             "nombre": p.nombre,
+            "imagen_url": p.imagen_url or obtener_imagen(p.nombre),
             "descripcion": p.descripcion,
             "hora_inicio": p.hora_inicio,
             "hora_fin": p.hora_fin,
@@ -197,16 +253,34 @@ def index(
             "latitud": p.latitud,
             "longitud": p.longitud,
             "generado_por_ia": False,
+            "promedio_valoracion": promedios.get(p.id),
+            "categoria": p.categoria,
         }
         for p in planes_db
     ]
 
-    # Generar planes con IA
+    # Generar planes con IA y guardarlos en la DB para que tengan ID real
     planes_ia = []
-    hay_filtros = any([hora_int, presupuesto_float, personas_int, acepta_mascotas, es_exterior, clima_a_filtrar, ciudad])
+    
+    # Criterios reales de búsqueda (ignoramos valores vacíos o nulos)
+    filtros_activos = [
+        hora_int is not None,
+        presupuesto_float is not None,
+        personas_int is not None,
+        bool(acepta_mascotas),
+        bool(es_exterior),
+        bool(clima), # Usamos clima original del form, no el clima_a_filtrar automático
+        bool(ciudad and ciudad.strip()),
+        bool(categoria)
+    ]
+    hay_filtros = any(filtros_activos)
+
+    if not hay_filtros:
+        planes = []
+        planes_db = []
 
     if hay_filtros:
-        if regenerar == '1':
+        if regenerar == "1":
             cantidad_a_generar = 10
         elif len(planes) < PLANES_MINIMOS:
             cantidad_a_generar = PLANES_MINIMOS - len(planes)
@@ -214,7 +288,7 @@ def index(
             cantidad_a_generar = 0
 
         if cantidad_a_generar > 0:
-            planes_ia = generar_planes_ia(
+            planes_ia_raw = generar_planes_ia(
                 hora=hora_int,
                 presupuesto_max=presupuesto_float,
                 cantidad_personas=personas_int,
@@ -224,8 +298,52 @@ def index(
                 ciudad=ciudad,
                 cantidad=cantidad_a_generar
             )
+            for p in planes_ia_raw:
+                nuevo = models.Plan(
+                    nombre=p.get("nombre", "Plan IA"),
+                    descripcion=p.get("descripcion"),
+                    imagen_url=p.get("imagen_url"),
+                    hora_inicio=p.get("hora_inicio"),
+                    hora_fin=p.get("hora_fin"),
+                    presupuesto_min=p.get("presupuesto_min") or 0,
+                    presupuesto_max=p.get("presupuesto_max"),
+                    personas_min=p.get("personas_min") or 1,
+                    personas_max=p.get("personas_max"),
+                    acepta_mascotas=p.get("acepta_mascotas", False),
+                    es_exterior=p.get("es_exterior", True),
+                    clima_recomendado=p.get("clima_recomendado", "cualquiera"),
+                    direccion=p.get("direccion"),
+                    latitud=None,
+                    longitud=None,
+                )
+                db.add(nuevo)
+                db.flush()
+                planes_ia.append({
+                    "id": nuevo.id,
+                    "nombre": nuevo.nombre,
+                    "imagen_url": nuevo.imagen_url,
+                    "descripcion": nuevo.descripcion,
+                    "hora_inicio": nuevo.hora_inicio,
+                    "hora_fin": nuevo.hora_fin,
+                    "presupuesto_min": nuevo.presupuesto_min,
+                    "presupuesto_max": nuevo.presupuesto_max,
+                    "personas_min": nuevo.personas_min,
+                    "personas_max": nuevo.personas_max,
+                    "acepta_mascotas": nuevo.acepta_mascotas,
+                    "es_exterior": nuevo.es_exterior,
+                    "clima_recomendado": nuevo.clima_recomendado,
+                    "direccion": nuevo.direccion,
+                    "latitud": None,
+                    "longitud": None,
+                    "generado_por_ia": True,
+                    "promedio_valoracion": None,
+                })
+            db.commit()
 
-    todos_los_planes = planes + planes_ia
+    if hay_filtros:
+        todos_los_planes = planes + planes_ia
+    else:
+        todos_los_planes = []
     hay_planes_ia = len(planes_ia) > 0
 
     planes_con_ubicacion = [
@@ -238,6 +356,7 @@ def index(
         "cantidad_personas": personas_int, "acepta_mascotas": acepta_mascotas,
         "es_exterior": es_exterior, "clima": clima, "ciudad": ciudad,
         "lat_usuario": lat_float, "lon_usuario": lon_float, "km_max": km_float,
+        "categoria": categoria,
     }
 
     return templates.TemplateResponse(
@@ -250,13 +369,50 @@ def index(
             "usuario": usuario_sesion,
             "ids_favoritos": ids_favoritos,
             "hay_planes_ia": hay_planes_ia,
+            "top_planes": top_planes,
+            "categoria_activa": categoria,
+            "hay_filtros": hay_filtros,
+        }
+    )
+
+@app.get("/plan/{plan_id}", response_class=HTMLResponse)
+def plan_detalle(plan_id: int, request: Request, db: Session = Depends(get_db)):
+    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    if not plan:
+        return templates.TemplateResponse(request=request, name="404.html", status_code=404)
+    
+    usuario = get_usuario_sesion(request, db)
+    en_favoritos = False
+    mi_valoracion = None
+    if usuario:
+        fav = db.query(models.Favorito).filter(models.Favorito.usuario_id == usuario.id, models.Favorito.plan_id == plan_id).first()
+        en_favoritos = bool(fav)
+        mi_valoracion = db.query(models.Valoracion).filter(models.Valoracion.usuario_id == usuario.id, models.Valoracion.plan_id == plan_id).first()
+
+    valoraciones = db.query(models.Valoracion).filter(models.Valoracion.plan_id == plan_id).order_by(models.Valoracion.fecha.desc()).all()
+    
+    # Clima en vivo
+    clima_en_vivo = None
+    if plan.latitud and plan.longitud:
+        from app.clima import obtener_clima
+        clima_en_vivo = obtener_clima(plan.latitud, plan.longitud)
+    
+    planes_similares = db.query(models.Plan).filter(models.Plan.categoria == plan.categoria, models.Plan.id != plan_id).limit(4).all()
+
+    return templates.TemplateResponse(
+        request=request, name="detalle.html",
+        context={
+            "plan": plan,
+            "usuario": usuario,
+            "en_favoritos": en_favoritos,
+            "mi_valoracion": mi_valoracion,
+            "valoraciones": valoraciones,
+            "clima_en_vivo": clima_en_vivo,
+            "planes_similares": planes_similares
         }
     )
 
 
-# ─────────────────────────────────────────────
-# DESCARTAR Y RESTAURAR
-# ─────────────────────────────────────────────
 @app.post("/descartar/{plan_id}")
 def descartar_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
     usuario_sesion = get_usuario_sesion(request, db)
@@ -268,8 +424,9 @@ def descartar_plan(plan_id: int, request: Request, db: Session = Depends(get_db)
     if not existente:
         db.add(models.Descarte(usuario_id=usuario.id, plan_id=plan_id))
         db.commit()
+    if request.headers.get("accept") == "application/json":
+        return JSONResponse({"status": "ok", "mensaje": "Plan descartado ❌"})
     return RedirectResponse(url="/", status_code=303)
-
 
 @app.post("/restaurar")
 def restaurar_todos(request: Request, db: Session = Depends(get_db)):
@@ -279,16 +436,15 @@ def restaurar_todos(request: Request, db: Session = Depends(get_db)):
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # REGISTRO Y LOGIN DE USUARIOS
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# ---------------------------------------------
 @app.get("/registro", response_class=HTMLResponse)
 def registro_form(request: Request):
     if request.session.get("usuario_id"):
         return RedirectResponse(url="/perfil", status_code=303)
     return templates.TemplateResponse(request=request, name="registro.html", context={"error": None})
-
 
 @app.post("/registro")
 def registro(
@@ -296,6 +452,7 @@ def registro(
     nombre: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
+    es_empresa: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     existente = db.query(models.Usuario).filter(models.Usuario.email == email).first()
@@ -309,13 +466,16 @@ def registro(
             request=request, name="registro.html",
             context={"error": "La contraseña debe tener al menos 6 caracteres"}
         )
-    nuevo = models.Usuario(nombre=nombre, email=email, hashed_password=hashear_password(password))
+    rol = "empresa" if es_empresa else "usuario"
+    nuevo = models.Usuario(nombre=nombre, email=email, hashed_password=hashear_password(password), rol=rol)
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
     request.session["usuario_id"] = nuevo.id
+    request.session["usuario_rol"] = nuevo.rol
+    if nuevo.rol == "empresa":
+        return RedirectResponse(url="/admin", status_code=303)
     return RedirectResponse(url="/perfil", status_code=303)
-
 
 @app.get("/login", response_class=HTMLResponse)
 def login_usuario_form(request: Request, mensaje: Optional[str] = None):
@@ -325,7 +485,6 @@ def login_usuario_form(request: Request, mensaje: Optional[str] = None):
         request=request, name="login_usuario.html",
         context={"error": None, "mensaje": mensaje}
     )
-
 
 @app.post("/login")
 def login_usuario(
@@ -341,18 +500,20 @@ def login_usuario(
             context={"error": "Email o contraseña incorrectos", "mensaje": None}
         )
     request.session["usuario_id"] = usuario.id
+    request.session["usuario_rol"] = getattr(usuario, 'rol', 'usuario')
+    if getattr(usuario, 'rol', 'usuario') == "empresa":
+        return RedirectResponse(url="/admin", status_code=303)
     return RedirectResponse(url="/perfil", status_code=303)
-
 
 @app.get("/logout")
 def logout_usuario(request: Request):
     request.session.pop("usuario_id", None)
+    request.session.pop("usuario_rol", None)
     return RedirectResponse(url="/", status_code=303)
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # PERFIL Y FAVORITOS
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 @app.get("/perfil", response_class=HTMLResponse)
 def perfil(request: Request, db: Session = Depends(get_db)):
     usuario = get_usuario_sesion(request, db)
@@ -367,7 +528,6 @@ def perfil(request: Request, db: Session = Depends(get_db)):
         context={"usuario": usuario, "favoritos": [f for f in favoritos if f]}
     )
 
-
 @app.post("/favoritos/agregar/{plan_id}")
 def agregar_favorito(plan_id: int, request: Request, db: Session = Depends(get_db)):
     usuario = get_usuario_sesion(request, db)
@@ -380,8 +540,9 @@ def agregar_favorito(plan_id: int, request: Request, db: Session = Depends(get_d
     if not existente:
         db.add(models.Favorito(usuario_id=usuario.id, plan_id=plan_id))
         db.commit()
+    if request.headers.get("accept") == "application/json":
+        return JSONResponse({"status": "ok", "mensaje": "Plan guardado en favoritos ❤️"})
     return RedirectResponse(url="/", status_code=303)
-
 
 @app.post("/favoritos/quitar/{plan_id}")
 def quitar_favorito(plan_id: int, request: Request, db: Session = Depends(get_db)):
@@ -393,18 +554,19 @@ def quitar_favorito(plan_id: int, request: Request, db: Session = Depends(get_db
         models.Favorito.plan_id == plan_id
     ).delete()
     db.commit()
+    if request.headers.get("accept") == "application/json":
+        return JSONResponse({"status": "ok", "mensaje": "Eliminado de favoritos 🤍"})
     return RedirectResponse(url="/perfil", status_code=303)
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # LOGIN ADMIN
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# ---------------------------------------------
 @app.get("/admin/login", response_class=HTMLResponse)
 def admin_login_form(request: Request):
     if request.session.get("admin_logueado"):
         return RedirectResponse(url="/admin", status_code=303)
     return templates.TemplateResponse(request=request, name="login.html", context={"error": None})
-
 
 @app.post("/admin/login")
 def admin_login(request: Request, usuario: str = Form(...), password: str = Form(...)):
@@ -416,32 +578,68 @@ def admin_login(request: Request, usuario: str = Form(...), password: str = Form
         context={"error": "Usuario o contraseña incorrectos"}
     )
 
-
 @app.get("/admin/logout")
 def admin_logout(request: Request):
     request.session.pop("admin_logueado", None)
     return RedirectResponse(url="/", status_code=303)
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # PANEL ADMIN
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 @app.get("/admin", response_class=HTMLResponse)
-def admin_panel(request: Request, mensaje: Optional[str] = None, db: Session = Depends(get_db)):
+def admin_panel(request: Request, page: int = 1, mensaje: Optional[str] = None, db: Session = Depends(get_db)):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    planes = db.query(models.Plan).all()
-    return templates.TemplateResponse(
-        request=request, name="admin.html", context={"planes": planes, "mensaje": mensaje}
-    )
+        
+    ITEMS_PER_PAGE = 10
+    offset = (page - 1) * ITEMS_PER_PAGE
+    
+    if not es_superadmin(request):
+        usuario_id = request.session.get("usuario_id")
+        base_query = db.query(models.Plan).filter(models.Plan.creador_id == usuario_id)
+    else:
+        base_query = db.query(models.Plan)
 
+    total_planes = base_query.count()
+    total_pages = max((total_planes + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE, 1)
+    
+    planes = base_query.offset(offset).limit(ITEMS_PER_PAGE).all()
+
+    # Estadísticas para el Dashboard
+    total_usuarios = db.query(models.Usuario).count()
+    total_valoraciones = db.query(models.Valoracion).count()
+    promedio_general = db.query(func.avg(models.Valoracion.puntuacion)).scalar() or 0.0
+    
+    cat_pop = db.query(models.Plan.categoria, func.count(models.Plan.id)).group_by(models.Plan.categoria).order_by(func.count(models.Plan.id).desc()).first()
+    categoria_popular = cat_pop[0] if cat_pop and cat_pop[0] else "Ninguna"
+    
+    ultimas_valoraciones = db.query(models.Valoracion).order_by(models.Valoracion.fecha.desc()).limit(5).all()
+
+    stats = {
+        "total_planes": total_planes,
+        "total_usuarios": total_usuarios,
+        "total_valoraciones": total_valoraciones,
+        "promedio_general": round(promedio_general, 1),
+        "categoria_popular": categoria_popular,
+    }
+
+    return templates.TemplateResponse(
+        request=request, name="admin.html", 
+        context={
+            "planes": planes, 
+            "mensaje": mensaje,
+            "stats": stats,
+            "ultimas_valoraciones": ultimas_valoraciones,
+            "current_page": page,
+            "total_pages": total_pages,
+        }
+    )
 
 @app.get("/admin/nuevo", response_class=HTMLResponse)
 def admin_nuevo_form(request: Request):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
     return templates.TemplateResponse(request=request, name="admin_form.html", context={"plan": None})
-
 
 @app.post("/admin/nuevo")
 def admin_crear_plan(
@@ -452,12 +650,17 @@ def admin_crear_plan(
     personas_min: str = Form("1"), personas_max: str = Form(""),
     acepta_mascotas: str = Form("false"), es_exterior: str = Form("true"),
     clima_recomendado: str = Form("cualquiera"),
+    categoria: str = Form(""),
     direccion: str = Form(""), latitud: str = Form(""), longitud: str = Form(""),
+    imagen_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    db.add(models.Plan(
+        
+    creador = request.session.get("usuario_id") if not es_superadmin(request) else None
+    
+    nuevo_plan = models.Plan(
         nombre=nombre, descripcion=descripcion or None,
         hora_inicio=parse_int(hora_inicio), hora_fin=parse_int(hora_fin),
         presupuesto_min=parse_float(presupuesto_min) or 0,
@@ -467,22 +670,36 @@ def admin_crear_plan(
         acepta_mascotas=acepta_mascotas == "true",
         es_exterior=es_exterior == "true",
         clima_recomendado=clima_recomendado,
+        categoria=categoria or None,
         direccion=direccion or None,
         latitud=parse_float(latitud), longitud=parse_float(longitud),
-    ))
+        creador_id=creador
+    )
+
+    if imagen_file and imagen_file.filename:
+        os.makedirs("app/static/uploads", exist_ok=True)
+        ext = imagen_file.filename.split(".")[-1]
+        filename = f"{uuid.uuid4()}.{ext}"
+        file_path = f"app/static/uploads/{filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(imagen_file.file, buffer)
+        nuevo_plan.imagen_url = f"/static/uploads/{filename}"
+
+    db.add(nuevo_plan)
     db.commit()
     return RedirectResponse(url="/admin?mensaje=Plan agregado correctamente", status_code=303)
-
 
 @app.get("/admin/editar/{plan_id}", response_class=HTMLResponse)
 def admin_editar_form(plan_id: int, request: Request, db: Session = Depends(get_db)):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    query = db.query(models.Plan).filter(models.Plan.id == plan_id)
+    if not es_superadmin(request):
+        query = query.filter(models.Plan.creador_id == request.session.get("usuario_id"))
+    plan = query.first()
     if not plan:
         return RedirectResponse(url="/admin", status_code=303)
     return templates.TemplateResponse(request=request, name="admin_form.html", context={"plan": plan})
-
 
 @app.post("/admin/editar/{plan_id}")
 def admin_actualizar_plan(
@@ -493,12 +710,17 @@ def admin_actualizar_plan(
     personas_min: str = Form("1"), personas_max: str = Form(""),
     acepta_mascotas: str = Form("false"), es_exterior: str = Form("true"),
     clima_recomendado: str = Form("cualquiera"),
+    categoria: str = Form(""),
     direccion: str = Form(""), latitud: str = Form(""), longitud: str = Form(""),
+    imagen_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    query = db.query(models.Plan).filter(models.Plan.id == plan_id)
+    if not es_superadmin(request):
+        query = query.filter(models.Plan.creador_id == request.session.get("usuario_id"))
+    plan = query.first()
     if not plan:
         return RedirectResponse(url="/admin", status_code=303)
     plan.nombre = nombre
@@ -512,18 +734,31 @@ def admin_actualizar_plan(
     plan.acepta_mascotas = acepta_mascotas == "true"
     plan.es_exterior = es_exterior == "true"
     plan.clima_recomendado = clima_recomendado
+    plan.categoria = categoria or None
     plan.direccion = direccion or None
     plan.latitud = parse_float(latitud)
     plan.longitud = parse_float(longitud)
+    
+    if imagen_file and imagen_file.filename:
+        os.makedirs("app/static/uploads", exist_ok=True)
+        ext = imagen_file.filename.split(".")[-1]
+        filename = f"{uuid.uuid4()}.{ext}"
+        file_path = f"app/static/uploads/{filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(imagen_file.file, buffer)
+        plan.imagen_url = f"/static/uploads/{filename}"
+
     db.commit()
     return RedirectResponse(url="/admin?mensaje=Plan actualizado correctamente", status_code=303)
-
 
 @app.post("/admin/eliminar/{plan_id}")
 def admin_eliminar_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
     if not admin_requerido(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    query = db.query(models.Plan).filter(models.Plan.id == plan_id)
+    if not es_superadmin(request):
+        query = query.filter(models.Plan.creador_id == request.session.get("usuario_id"))
+    plan = query.first()
     if plan:
         db.query(models.Descarte).filter(models.Descarte.plan_id == plan_id).delete()
         db.query(models.Favorito).filter(models.Favorito.plan_id == plan_id).delete()
@@ -531,19 +766,21 @@ def admin_eliminar_plan(plan_id: int, request: Request, db: Session = Depends(ge
         db.commit()
     return RedirectResponse(url="/admin?mensaje=Plan eliminado correctamente", status_code=303)
 
-
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # API REST
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 @app.get("/api/planes", response_model=List[schemas.PlanOut])
 def api_planes(db: Session = Depends(get_db)):
     return db.query(models.Plan).all()
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # DETALLE DE UN PLAN
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 @app.get("/plan/{plan_id}", response_class=HTMLResponse)
 def detalle_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
-    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    query = db.query(models.Plan).filter(models.Plan.id == plan_id)
+    if not es_superadmin(request):
+        query = query.filter(models.Plan.creador_id == request.session.get("usuario_id"))
+    plan = query.first()
     if not plan:
         return RedirectResponse(url="/", status_code=303)
     usuario = get_usuario_sesion(request, db)
@@ -553,7 +790,102 @@ def detalle_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
             models.Favorito.usuario_id == usuario.id,
             models.Favorito.plan_id == plan_id
         ).first() is not None
+
+    # Valoraciones
+    valoraciones = db.query(models.Valoracion).filter(
+        models.Valoracion.plan_id == plan_id
+    ).order_by(models.Valoracion.fecha.desc()).all()
+
+    promedio = None
+    mi_valoracion = None
+    if valoraciones:
+        promedio = round(sum(v.puntuacion for v in valoraciones) / len(valoraciones), 1)
+    if usuario:
+        mi_valoracion = db.query(models.Valoracion).filter(
+            models.Valoracion.plan_id == plan_id,
+            models.Valoracion.usuario_id == usuario.id
+        ).first()
+
+    # Clima en tiempo real (si hay direccion)
+    clima_en_vivo = None
+    if plan.direccion:
+        partes = plan.direccion.split(",")
+        ciudad_plan = partes[-1].strip() if len(partes) > 1 else plan.direccion.strip()
+        clima_en_vivo = obtener_clima_ciudad(ciudad_plan)
+
+    # Buscar planes similares (misma categoria, max 3, distinto al actual)
+    planes_similares = []
+    if plan.categoria:
+        planes_similares = db.query(models.Plan).filter(
+            models.Plan.categoria == plan.categoria,
+            models.Plan.id != plan.id
+        ).limit(3).all()
+
     return templates.TemplateResponse(
         request=request, name="detalle.html",
-        context={"plan": plan, "usuario": usuario, "en_favoritos": en_favoritos}
+        context={
+            "plan": plan,
+            "usuario": usuario,
+            "en_favoritos": en_favoritos,
+            "valoraciones": valoraciones,
+            "promedio": promedio,
+            "mi_valoracion": mi_valoracion,
+            "clima_en_vivo": clima_en_vivo,
+            "planes_similares": planes_similares,
+        }
     )
+
+# ---------------------------------------------
+# VALORACIONES
+# ---------------------------------------------
+@app.post("/plan/{plan_id}/valorar")
+def valorar_plan(
+    plan_id: int,
+    request: Request,
+    puntuacion: int = Form(...),
+    comentario: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    usuario = get_usuario_sesion(request, db)
+    if not usuario:
+        return RedirectResponse(url=f"/login", status_code=303)
+
+    query = db.query(models.Plan).filter(models.Plan.id == plan_id)
+    if not es_superadmin(request):
+        query = query.filter(models.Plan.creador_id == request.session.get("usuario_id"))
+    plan = query.first()
+    if not plan:
+        return RedirectResponse(url="/", status_code=303)
+
+    if not (1 <= puntuacion <= 5):
+        return RedirectResponse(url=f"/plan/{plan_id}", status_code=303)
+
+    existente = db.query(models.Valoracion).filter(
+        models.Valoracion.usuario_id == usuario.id,
+        models.Valoracion.plan_id == plan_id
+    ).first()
+
+    if existente:
+        existente.puntuacion = puntuacion
+        existente.comentario = comentario.strip() or None
+    else:
+        db.add(models.Valoracion(
+            usuario_id=usuario.id,
+            plan_id=plan_id,
+            puntuacion=puntuacion,
+            comentario=comentario.strip() or None
+        ))
+    db.commit()
+    return RedirectResponse(url=f"/plan/{plan_id}", status_code=303)
+
+@app.post("/plan/{plan_id}/valoracion/eliminar")
+def eliminar_valoracion(plan_id: int, request: Request, db: Session = Depends(get_db)):
+    usuario = get_usuario_sesion(request, db)
+    if not usuario:
+        return RedirectResponse(url="/login", status_code=303)
+    db.query(models.Valoracion).filter(
+        models.Valoracion.plan_id == plan_id,
+        models.Valoracion.usuario_id == usuario.id
+    ).delete()
+    db.commit()
+    return RedirectResponse(url=f"/plan/{plan_id}", status_code=303)

@@ -7,6 +7,7 @@ import os
 from typing import Optional
 from dotenv import load_dotenv
 from google import genai
+from app.imagenes import obtener_imagen
 
 load_dotenv()
 
@@ -107,7 +108,7 @@ Reglas:
             plan["generado_por_ia"] = True
             plan["latitud"] = None
             plan["longitud"] = None
-            plan["imagen_url"] = None
+            plan["imagen_url"] = obtener_imagen(plan["nombre"])
 
         return planes
 
