@@ -26,25 +26,22 @@
 {% endif %}
 
 <!-- FILTROS -->
-<form class="filtros" method="get" action="/">
+<form class="filtros" method="get" action="/" id="form-filtros">
     <div class="filtro-grupo">
         <label>🕐 Hora del día</label>
         <input type="number" name="hora" min="0" max="23" placeholder="ej: 15"
                value="{{ filtros.hora or '' }}">
     </div>
-
     <div class="filtro-grupo">
         <label>💰 Presupuesto máximo</label>
         <input type="number" name="presupuesto_max" min="0" placeholder="ej: 5000"
                value="{{ filtros.presupuesto_max or '' }}">
     </div>
-
     <div class="filtro-grupo">
         <label>👥 Cantidad de personas</label>
         <input type="number" name="cantidad_personas" min="1" placeholder="ej: 4"
                value="{{ filtros.cantidad_personas or '' }}">
     </div>
-
     <div class="filtro-grupo">
         <label>🐾 ¿Con mascotas?</label>
         <select name="acepta_mascotas">
@@ -53,7 +50,6 @@
             <option value="false" {% if filtros.acepta_mascotas == 'false' %}selected{% endif %}>No</option>
         </select>
     </div>
-
     <div class="filtro-grupo">
         <label>🏠 ¿Dónde?</label>
         <select name="es_exterior">
@@ -62,7 +58,6 @@
             <option value="false" {% if filtros.es_exterior == 'false' %}selected{% endif %}>Cerrado</option>
         </select>
     </div>
-
     <div class="filtro-grupo">
         <label>🌤️ Clima</label>
         <select name="clima">
@@ -72,13 +67,11 @@
             <option value="lluvioso" {% if filtros.clima == 'lluvioso' %}selected{% endif %}>Lluvioso</option>
         </select>
     </div>
-
     <div class="filtro-grupo">
         <label>📍 Ciudad (clima automático)</label>
         <input type="text" name="ciudad" placeholder="ej: Buenos Aires"
                value="{{ filtros.ciudad or '' }}">
     </div>
-
     <div class="filtro-grupo">
         <label>📏 Distancia máxima (km)</label>
         <input type="number" name="km_max" min="1" placeholder="ej: 10"
@@ -87,6 +80,7 @@
 
     <input type="hidden" name="lat_usuario" id="lat_usuario" value="{{ filtros.lat_usuario or '' }}">
     <input type="hidden" name="lon_usuario" id="lon_usuario" value="{{ filtros.lon_usuario or '' }}">
+    <input type="hidden" name="regenerar" id="regenerar" value="">
 
     <div class="filtros-botones">
         <button type="submit" class="btn-buscar" id="btn-buscar">Buscar planes</button>
@@ -110,15 +104,23 @@
             <p class="cantidad-resultados">
                 {{ planes|length }} plan{% if planes|length != 1 %}es{% endif %} encontrado{% if planes|length != 1 %}s{% endif %}
             </p>
-            <form method="post" action="/restaurar">
-                <button type="submit" class="btn-restaurar">↺ Restaurar descartados</button>
-            </form>
+            <div style="display:flex; gap:0.5rem;">
+                {% if hay_planes_ia %}
+                <button class="btn-regenerar" onclick="regenerarPlanes()">🔄 Generar nuevos</button>
+                {% endif %}
+                <form method="post" action="/restaurar">
+                    <button type="submit" class="btn-restaurar">↺ Restaurar descartados</button>
+                </form>
+            </div>
         </div>
 
         <div class="grid-planes">
             {% for plan in planes %}
-            <div class="card-plan">
+            <div class="card-plan {% if plan.generado_por_ia %}card-ia{% endif %}">
                 <div class="card-header">
+                    {% if plan.generado_por_ia %}
+                    <span class="badge badge-ia">✨ Sugerido por IA</span>
+                    {% endif %}
                     <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
                         {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
                     </span>
@@ -127,7 +129,13 @@
                     {% endif %}
                 </div>
 
+                {% if not plan.generado_por_ia %}
+                <a href="/plan/{{ plan.id }}" class="card-titulo-link">
+                   <h2 class="card-titulo">{{ plan.nombre }}</h2>
+                </a>
+                {% else %}
                 <h2 class="card-titulo">{{ plan.nombre }}</h2>
+                {% endif %}
                 <p class="card-desc">{{ plan.descripcion }}</p>
 
                 <div class="card-info">
@@ -153,24 +161,24 @@
                 </div>
 
                 <div class="card-acciones">
-                    <!-- Favorito: solo si está logueado -->
-                    {% if usuario %}
-                        {% if plan.id in ids_favoritos %}
-                        <form method="post" action="/favoritos/quitar/{{ plan.id }}">
-                            <button type="submit" class="btn-fav activo">❤️ Guardado</button>
-                        </form>
+                    {% if not plan.generado_por_ia %}
+                        {% if usuario %}
+                            {% if plan.id in ids_favoritos %}
+                            <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                                <button type="submit" class="btn-fav activo">❤️ Guardado</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="/favoritos/agregar/{{ plan.id }}">
+                                <button type="submit" class="btn-fav">🤍 Guardar</button>
+                            </form>
+                            {% endif %}
                         {% else %}
-                        <form method="post" action="/favoritos/agregar/{{ plan.id }}">
-                            <button type="submit" class="btn-fav">🤍 Guardar</button>
-                        </form>
+                            <a href="/login" class="btn-fav">🤍 Guardar</a>
                         {% endif %}
-                    {% else %}
-                        <a href="/login" class="btn-fav">🤍 Guardar</a>
+                        <form method="post" action="/descartar/{{ plan.id }}">
+                            <button type="submit" class="btn-descartar">✕ No me interesa</button>
+                        </form>
                     {% endif %}
-
-                    <form method="post" action="/descartar/{{ plan.id }}">
-                        <button type="submit" class="btn-descartar">✕ No me interesa</button>
-                    </form>
                 </div>
             </div>
             {% endfor %}
@@ -202,7 +210,7 @@
     const mapa = L.map('mapa').setView([centroLat, centroLon], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
     if (latUsuario && lonUsuario) {
-        L.circleMarker([latUsuario, lonUsuario], { radius: 10, color: '#6c63ff', fillColor: '#6c63ff', fillOpacity: 0.8 })
+        L.circleMarker([latUsuario, lonUsuario], { radius: 10, color: '#2d2d2a', fillColor: '#2d2d2a', fillOpacity: 0.8 })
             .addTo(mapa).bindPopup('📍 Tu ubicación');
     }
     planesConUbicacion.forEach(plan => {
@@ -233,6 +241,14 @@ function obtenerUbicacion() {
             btn.disabled = false;
         }
     );
+}
+
+function regenerarPlanes() {
+    const btn = document.querySelector('.btn-regenerar');
+    btn.textContent = '⏳ Generando...';
+    btn.disabled = true;
+    document.getElementById('regenerar').value = '1';
+    document.getElementById('form-filtros').submit();
 }
 </script>
 

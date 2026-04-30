@@ -13,6 +13,7 @@ import math
 from app import models, schemas
 from app.database import engine, get_db
 from app.clima import obtener_clima_ciudad
+from app.ia import generar_planes_ia
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -25,11 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
-# Credenciales admin
 ADMIN_USUARIO = "admin"
 ADMIN_PASSWORD = "planazo123"
+PLANES_MINIMOS = 10
 
-# Hasheo de contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -46,7 +46,6 @@ def admin_requerido(request: Request) -> bool:
 
 
 def get_usuario_sesion(request: Request, db: Session) -> Optional[models.Usuario]:
-    """Devuelve el usuario logueado o None si no hay sesión."""
     usuario_id = request.session.get("usuario_id")
     if not usuario_id:
         return None
@@ -103,9 +102,9 @@ def index(
     lat_usuario: Optional[str] = None,
     lon_usuario: Optional[str] = None,
     km_max: Optional[str] = None,
+    regenerar: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    # Usuario logueado o invitado
     usuario_sesion = get_usuario_sesion(request, db)
     usuario = usuario_sesion if usuario_sesion else get_or_create_usuario_invitado(db)
 
@@ -128,7 +127,6 @@ def index(
     ).all()
     ids_descartados = [d[0] for d in descartados]
 
-    # IDs de favoritos del usuario logueado
     ids_favoritos = []
     if usuario_sesion:
         favs = db.query(models.Favorito.plan_id).filter(
@@ -160,6 +158,8 @@ def index(
         )
     if acepta_mascotas == "true":
         query = query.filter(models.Plan.acepta_mascotas == True)
+    elif acepta_mascotas == "false":
+        query = query.filter(models.Plan.acepta_mascotas == False)
     if es_exterior == "true":
         query = query.filter(models.Plan.es_exterior == True)
     elif es_exterior == "false":
@@ -170,18 +170,67 @@ def index(
             (models.Plan.clima_recomendado == clima_a_filtrar)
         )
 
-    planes = query.all()
+    planes_db = query.all()
 
     if lat_float is not None and lon_float is not None and km_float is not None:
-        planes = [
-            p for p in planes
+        planes_db = [
+            p for p in planes_db
             if p.latitud is None or p.longitud is None or
             distancia_km(lat_float, lon_float, p.latitud, p.longitud) <= km_float
         ]
 
+    planes = [
+        {
+            "id": p.id,
+            "nombre": p.nombre,
+            "descripcion": p.descripcion,
+            "hora_inicio": p.hora_inicio,
+            "hora_fin": p.hora_fin,
+            "presupuesto_min": p.presupuesto_min,
+            "presupuesto_max": p.presupuesto_max,
+            "personas_min": p.personas_min,
+            "personas_max": p.personas_max,
+            "acepta_mascotas": p.acepta_mascotas,
+            "es_exterior": p.es_exterior,
+            "clima_recomendado": p.clima_recomendado,
+            "direccion": p.direccion,
+            "latitud": p.latitud,
+            "longitud": p.longitud,
+            "generado_por_ia": False,
+        }
+        for p in planes_db
+    ]
+
+    # Generar planes con IA
+    planes_ia = []
+    hay_filtros = any([hora_int, presupuesto_float, personas_int, acepta_mascotas, es_exterior, clima_a_filtrar, ciudad])
+
+    if hay_filtros:
+        if regenerar == '1':
+            cantidad_a_generar = 10
+        elif len(planes) < PLANES_MINIMOS:
+            cantidad_a_generar = PLANES_MINIMOS - len(planes)
+        else:
+            cantidad_a_generar = 0
+
+        if cantidad_a_generar > 0:
+            planes_ia = generar_planes_ia(
+                hora=hora_int,
+                presupuesto_max=presupuesto_float,
+                cantidad_personas=personas_int,
+                acepta_mascotas=acepta_mascotas == "true" if acepta_mascotas else None,
+                es_exterior=es_exterior == "true" if es_exterior else None,
+                clima=clima_a_filtrar,
+                ciudad=ciudad,
+                cantidad=cantidad_a_generar
+            )
+
+    todos_los_planes = planes + planes_ia
+    hay_planes_ia = len(planes_ia) > 0
+
     planes_con_ubicacion = [
-        {"nombre": p.nombre, "latitud": p.latitud, "longitud": p.longitud, "direccion": p.direccion}
-        for p in planes if p.latitud is not None and p.longitud is not None
+        {"nombre": p["nombre"], "latitud": p["latitud"], "longitud": p["longitud"], "direccion": p.get("direccion")}
+        for p in todos_los_planes if p.get("latitud") is not None and p.get("longitud") is not None
     ]
 
     filtros = {
@@ -194,15 +243,45 @@ def index(
     return templates.TemplateResponse(
         request=request, name="index.html",
         context={
-            "planes": planes, "filtros": filtros,
-            "clima_actual": clima_actual, "planes_con_ubicacion": planes_con_ubicacion,
-            "usuario": usuario_sesion, "ids_favoritos": ids_favoritos,
+            "planes": todos_los_planes,
+            "filtros": filtros,
+            "clima_actual": clima_actual,
+            "planes_con_ubicacion": planes_con_ubicacion,
+            "usuario": usuario_sesion,
+            "ids_favoritos": ids_favoritos,
+            "hay_planes_ia": hay_planes_ia,
         }
     )
 
 
 # ─────────────────────────────────────────────
-# REGISTRO DE USUARIOS
+# DESCARTAR Y RESTAURAR
+# ─────────────────────────────────────────────
+@app.post("/descartar/{plan_id}")
+def descartar_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
+    usuario_sesion = get_usuario_sesion(request, db)
+    usuario = usuario_sesion if usuario_sesion else get_or_create_usuario_invitado(db)
+    existente = db.query(models.Descarte).filter(
+        models.Descarte.usuario_id == usuario.id,
+        models.Descarte.plan_id == plan_id
+    ).first()
+    if not existente:
+        db.add(models.Descarte(usuario_id=usuario.id, plan_id=plan_id))
+        db.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/restaurar")
+def restaurar_todos(request: Request, db: Session = Depends(get_db)):
+    usuario_sesion = get_usuario_sesion(request, db)
+    usuario = usuario_sesion if usuario_sesion else get_or_create_usuario_invitado(db)
+    db.query(models.Descarte).filter(models.Descarte.usuario_id == usuario.id).delete()
+    db.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+
+# ─────────────────────────────────────────────
+# REGISTRO Y LOGIN DE USUARIOS
 # ─────────────────────────────────────────────
 @app.get("/registro", response_class=HTMLResponse)
 def registro_form(request: Request):
@@ -230,11 +309,7 @@ def registro(
             request=request, name="registro.html",
             context={"error": "La contraseña debe tener al menos 6 caracteres"}
         )
-    nuevo = models.Usuario(
-        nombre=nombre,
-        email=email,
-        hashed_password=hashear_password(password)
-    )
+    nuevo = models.Usuario(nombre=nombre, email=email, hashed_password=hashear_password(password))
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
@@ -242,9 +317,6 @@ def registro(
     return RedirectResponse(url="/perfil", status_code=303)
 
 
-# ─────────────────────────────────────────────
-# LOGIN DE USUARIOS
-# ─────────────────────────────────────────────
 @app.get("/login", response_class=HTMLResponse)
 def login_usuario_form(request: Request, mensaje: Optional[str] = None):
     if request.session.get("usuario_id"):
@@ -279,7 +351,7 @@ def logout_usuario(request: Request):
 
 
 # ─────────────────────────────────────────────
-# PERFIL
+# PERFIL Y FAVORITOS
 # ─────────────────────────────────────────────
 @app.get("/perfil", response_class=HTMLResponse)
 def perfil(request: Request, db: Session = Depends(get_db)):
@@ -289,19 +361,13 @@ def perfil(request: Request, db: Session = Depends(get_db)):
     favoritos_ids = db.query(models.Favorito.plan_id).filter(
         models.Favorito.usuario_id == usuario.id
     ).all()
-    favoritos = [
-        db.query(models.Plan).filter(models.Plan.id == f[0]).first()
-        for f in favoritos_ids
-    ]
+    favoritos = [db.query(models.Plan).filter(models.Plan.id == f[0]).first() for f in favoritos_ids]
     return templates.TemplateResponse(
         request=request, name="perfil.html",
         context={"usuario": usuario, "favoritos": [f for f in favoritos if f]}
     )
 
 
-# ─────────────────────────────────────────────
-# FAVORITOS
-# ─────────────────────────────────────────────
 @app.post("/favoritos/agregar/{plan_id}")
 def agregar_favorito(plan_id: int, request: Request, db: Session = Depends(get_db)):
     usuario = get_usuario_sesion(request, db)
@@ -328,32 +394,6 @@ def quitar_favorito(plan_id: int, request: Request, db: Session = Depends(get_db
     ).delete()
     db.commit()
     return RedirectResponse(url="/perfil", status_code=303)
-
-
-# ─────────────────────────────────────────────
-# DESCARTAR Y RESTAURAR
-# ─────────────────────────────────────────────
-@app.post("/descartar/{plan_id}")
-def descartar_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
-    usuario_sesion = get_usuario_sesion(request, db)
-    usuario = usuario_sesion if usuario_sesion else get_or_create_usuario_invitado(db)
-    existente = db.query(models.Descarte).filter(
-        models.Descarte.usuario_id == usuario.id,
-        models.Descarte.plan_id == plan_id
-    ).first()
-    if not existente:
-        db.add(models.Descarte(usuario_id=usuario.id, plan_id=plan_id))
-        db.commit()
-    return RedirectResponse(url="/", status_code=303)
-
-
-@app.post("/restaurar")
-def restaurar_todos(request: Request, db: Session = Depends(get_db)):
-    usuario_sesion = get_usuario_sesion(request, db)
-    usuario = usuario_sesion if usuario_sesion else get_or_create_usuario_invitado(db)
-    db.query(models.Descarte).filter(models.Descarte.usuario_id == usuario.id).delete()
-    db.commit()
-    return RedirectResponse(url="/", status_code=303)
 
 
 # ─────────────────────────────────────────────
@@ -384,7 +424,7 @@ def admin_logout(request: Request):
 
 
 # ─────────────────────────────────────────────
-# PANEL ADMIN (protegido)
+# PANEL ADMIN
 # ─────────────────────────────────────────────
 @app.get("/admin", response_class=HTMLResponse)
 def admin_panel(request: Request, mensaje: Optional[str] = None, db: Session = Depends(get_db)):
@@ -498,3 +538,22 @@ def admin_eliminar_plan(plan_id: int, request: Request, db: Session = Depends(ge
 @app.get("/api/planes", response_model=List[schemas.PlanOut])
 def api_planes(db: Session = Depends(get_db)):
     return db.query(models.Plan).all()
+# ─────────────────────────────────────────────
+# DETALLE DE UN PLAN
+# ─────────────────────────────────────────────
+@app.get("/plan/{plan_id}", response_class=HTMLResponse)
+def detalle_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
+    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    if not plan:
+        return RedirectResponse(url="/", status_code=303)
+    usuario = get_usuario_sesion(request, db)
+    en_favoritos = False
+    if usuario:
+        en_favoritos = db.query(models.Favorito).filter(
+            models.Favorito.usuario_id == usuario.id,
+            models.Favorito.plan_id == plan_id
+        ).first() is not None
+    return templates.TemplateResponse(
+        request=request, name="detalle.html",
+        context={"plan": plan, "usuario": usuario, "en_favoritos": en_favoritos}
+    )

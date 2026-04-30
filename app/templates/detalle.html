@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="detalle-wrapper">
+
+    <a href="/" class="btn-limpiar" style="display:inline-block; margin-bottom:1.5rem;">← Volver a los planes</a>
+
+    <div class="detalle-card">
+
+        <!-- HEADER -->
+        <div class="detalle-header">
+            <div class="card-header">
+                <span class="badge {% if plan.es_exterior %}badge-exterior{% else %}badge-interior{% endif %}">
+                    {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
+                </span>
+                {% if plan.acepta_mascotas %}
+                <span class="badge badge-mascota">🐾 Mascotas OK</span>
+                {% endif %}
+                {% if plan.clima_recomendado != 'cualquiera' %}
+                <span class="badge badge-clima">
+                    {% if plan.clima_recomendado == 'soleado' %}☀️{% elif plan.clima_recomendado == 'nublado' %}☁️{% else %}🌧️{% endif %}
+                    {{ plan.clima_recomendado | capitalize }}
+                </span>
+                {% endif %}
+            </div>
+            <h1 class="detalle-titulo">{{ plan.nombre }}</h1>
+            <p class="detalle-desc">{{ plan.descripcion }}</p>
+        </div>
+
+        <!-- INFO -->
+        <div class="detalle-info">
+            {% if plan.hora_inicio is not none and plan.hora_fin is not none %}
+            <div class="detalle-info-item">
+                <span class="detalle-info-label">🕐 Horario</span>
+                <span class="detalle-info-valor">{{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00 hs</span>
+            </div>
+            {% endif %}
+
+            <div class="detalle-info-item">
+                <span class="detalle-info-label">💰 Presupuesto</span>
+                <span class="detalle-info-valor">
+                    {% if plan.presupuesto_max %}
+                        ${{ plan.presupuesto_min | int }} - ${{ plan.presupuesto_max | int }}
+                    {% else %}
+                        Gratis
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="detalle-info-item">
+                <span class="detalle-info-label">👥 Personas</span>
+                <span class="detalle-info-valor">
+                    {% if plan.personas_max %}
+                        {{ plan.personas_min }} - {{ plan.personas_max }} personas
+                    {% else %}
+                        Desde {{ plan.personas_min }} persona{% if plan.personas_min != 1 %}s{% endif %}
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if plan.direccion %}
+            <div class="detalle-info-item">
+                <span class="detalle-info-label">📍 Dirección</span>
+                <span class="detalle-info-valor">{{ plan.direccion }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- MAPA -->
+        {% if plan.latitud and plan.longitud %}
+        <div class="detalle-mapa">
+            <h3 class="mapa-titulo">📍 Ubicación</h3>
+            <div id="mapa-detalle"></div>
+        </div>
+        {% endif %}
+
+        <!-- ACCIONES -->
+        <div class="detalle-acciones">
+            {% if usuario %}
+                {% if en_favoritos %}
+                <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                    <button type="submit" class="btn-fav activo" style="font-size:1rem; padding: 0.65rem 1.5rem;">❤️ Guardado en favoritos</button>
+                </form>
+                {% else %}
+                <form method="post" action="/favoritos/agregar/{{ plan.id }}">
+                    <button type="submit" class="btn-fav" style="font-size:1rem; padding: 0.65rem 1.5rem;">🤍 Guardar en favoritos</button>
+                </form>
+                {% endif %}
+            {% else %}
+                <a href="/login" class="btn-fav" style="font-size:1rem; padding: 0.65rem 1.5rem;">🤍 Iniciá sesión para guardar</a>
+            {% endif %}
+
+            <form method="post" action="/descartar/{{ plan.id }}">
+                <button type="submit" class="btn-descartar" style="font-size:1rem; padding: 0.65rem 1.5rem;">✕ No me interesa</button>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+{% if plan.latitud and plan.longitud %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const mapa = L.map('mapa-detalle').setView([{{ plan.latitud }}, {{ plan.longitud }}], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(mapa);
+    L.marker([{{ plan.latitud }}, {{ plan.longitud }}])
+        .addTo(mapa)
+        .bindPopup('<strong>{{ plan.nombre }}</strong><br>{{ plan.direccion or "" }}')
+        .openPopup();
+</script>
+{% endif %}
+
+{% endblock %}
