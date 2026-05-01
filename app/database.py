@@ -1,19 +1,24 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Acá definís con qué base de datos trabajás.
-# SQLite guarda todo en un archivo local (planify.db) — ideal para empezar.
-# Cuando quieras pasar a PostgreSQL, solo cambiás esta línea por:
-# DATABASE_URL = "postgresql://usuario:contraseña@localhost/planify"
-DATABASE_URL = "sqlite:///./planify.db"
+# En producción (Render), se usa la variable de entorno DATABASE_URL con PostgreSQL.
+# En local, se usa SQLite para simplicidad.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./planify.db")
 
-# El "engine" es el motor que conecta Python con la base de datos.
-# check_same_thread=False es necesario solo para SQLite con FastAPI.
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
+# Render provee URLs con prefijo "postgres://" pero SQLAlchemy necesita "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Configuración del engine según el tipo de base de datos
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(DATABASE_URL)
 
 # SessionLocal es la "sesión" de base de datos.
 # Cada request HTTP va a abrir una sesión y cerrarla al terminar.
