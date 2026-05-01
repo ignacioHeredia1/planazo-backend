@@ -81,7 +81,9 @@
                 {% if plan.direccion %}
                 <p class="text-slate-500 dark:text-slate-400 font-bold mb-4 ml-1">{{ plan.direccion }}</p>
                 {% endif %}
+                {% if plan.latitud and plan.longitud %}
                 <div id="mapa-detalle" class="h-[300px] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700"></div>
+                {% endif %}
             </div>
             {% endif %}
 
