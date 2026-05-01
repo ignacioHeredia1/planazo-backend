@@ -48,17 +48,23 @@
         </div>
 
         <div class="form-grupo">
-            <label>Presupuesto mínimo ($)</label>
-            <input type="number" name="presupuesto_min" min="0"
-                   value="{{ plan.presupuesto_min if plan else '0' }}"
-                   placeholder="ej: 0">
+            <label>Presupuesto mínimo</label>
+            <div style="position: relative; display: flex; align-items: center;">
+                <span style="position: absolute; left: 14px; color: #888; font-weight: bold; pointer-events: none;">$</span>
+                <input type="number" name="presupuesto_min" min="0"
+                       value="{{ plan.presupuesto_min if plan else '0' }}"
+                       placeholder="ej: 0" style="padding-left: 32px; width: 100%;">
+            </div>
         </div>
 
         <div class="form-grupo">
-            <label>Presupuesto máximo ($)</label>
-            <input type="number" name="presupuesto_max" min="0"
-                   value="{{ plan.presupuesto_max if plan and plan.presupuesto_max is not none else '' }}"
-                   placeholder="ej: 5000 (vacío = sin límite)">
+            <label>Presupuesto máximo</label>
+            <div style="position: relative; display: flex; align-items: center;">
+                <span style="position: absolute; left: 14px; color: #888; font-weight: bold; pointer-events: none;">$</span>
+                <input type="number" name="presupuesto_max" min="0"
+                       value="{{ plan.presupuesto_max if plan and plan.presupuesto_max is not none else '' }}"
+                       placeholder="ej: 5000 (vacío = sin límite)" style="padding-left: 32px; width: 100%;">
+            </div>
         </div>
 
         <div class="form-grupo">
