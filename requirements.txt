@@ -2,3 +2,11 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pydantic[email]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+httpx
+google-genai
+itsdangerous
+jinja2
+aiofiles

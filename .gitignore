@@ -1,14 +1,14 @@
 # Entorno virtual
 venv/
+.venv/
+
+# Variables de entorno (NUNCA subir al repo)
 .env
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
-
-# Base de datos
-*.db
 
 # Archivos del sistema
 .DS_Store
@@ -19,3 +19,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Uploads generados por usuarios (no versionar)
+app/static/uploads/
