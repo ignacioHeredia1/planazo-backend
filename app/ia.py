@@ -47,19 +47,20 @@ def generar_planes_ia(
 
     filtros_str = "\n".join(filtros_texto) if filtros_texto else "- Sin filtros específicos (sugerí planes variados)"
 
-    prompt = f"""Sos un asistente experto en recomendar planes y actividades para personas en Argentina.
+    prompt = f"""Sos un asistente experto en recomendar planes y actividades reales en Argentina.
 
 El usuario está buscando planes con estas características:
 {filtros_str}
 
-Generá exactamente {cantidad} planes creativos y específicos que se adapten a esos filtros.
+Generá exactamente {cantidad} planes creativos, reales y específicos que se adapten a esos filtros.
+Es muy importante que el lugar exista y que proveas coordenadas GPS reales (latitud y longitud).
 
 Respondé ÚNICAMENTE con un JSON válido, sin texto adicional, sin explicaciones, sin markdown.
 El JSON debe ser un array con exactamente {cantidad} objetos, cada uno con esta estructura:
 
 [
   {{
-    "nombre": "Nombre del plan",
+    "nombre": "Nombre del lugar o plan",
     "descripcion": "Descripción atractiva de 1-2 oraciones",
     "hora_inicio": 10,
     "hora_fin": 18,
@@ -70,7 +71,9 @@ El JSON debe ser un array con exactamente {cantidad} objetos, cada uno con esta 
     "acepta_mascotas": false,
     "es_exterior": true,
     "clima_recomendado": "soleado",
-    "direccion": "Nombre del lugar o zona (puede ser genérico)"
+    "direccion": "Dirección exacta del lugar real",
+    "latitud": -34.6172,
+    "longitud": -58.3621
   }}
 ]
 
@@ -80,7 +83,9 @@ Reglas:
 - personas_min y personas_max deben ser números enteros
 - acepta_mascotas y es_exterior deben ser true o false
 - clima_recomendado debe ser "soleado", "nublado", "lluvioso" o "cualquiera"
-- Los planes deben ser creativos, variados y realizables en Argentina
+- direccion debe ser una ubicación precisa en Argentina
+- latitud y longitud deben ser números reales (float) apuntando exactamente al lugar en el mapa
+- Los planes deben ser lugares reales, variados y realizables en Argentina
 - Adaptá los planes a la ciudad o zona si se especificó"""
 
     try:
@@ -106,8 +111,10 @@ Reglas:
 
         for plan in planes:
             plan["generado_por_ia"] = True
-            plan["latitud"] = None
-            plan["longitud"] = None
+            # Asegurarse de que las coordenadas existan en caso de que la IA no las genere bien
+            if "latitud" not in plan or "longitud" not in plan:
+                plan["latitud"] = None
+                plan["longitud"] = None
             plan["imagen_url"] = obtener_imagen(plan["nombre"])
 
         return planes
