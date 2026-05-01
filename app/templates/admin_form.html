@@ -36,17 +36,15 @@
         </div>
 
         <div class="form-grupo">
-            <label>Hora de inicio (0-23)</label>
-            <input type="number" name="hora_inicio" min="0" max="23"
-                   value="{{ plan.hora_inicio if plan and plan.hora_inicio is not none else '' }}"
-                   placeholder="ej: 10">
+            <label>Hora de inicio</label>
+            <input type="time" name="hora_inicio"
+                   value="{% if plan and plan.hora_inicio is not none %}{{ '%02d:00' | format(plan.hora_inicio) }}{% endif %}">
         </div>
 
         <div class="form-grupo">
-            <label>Hora de fin (0-23)</label>
-            <input type="number" name="hora_fin" min="0" max="23"
-                   value="{{ plan.hora_fin if plan and plan.hora_fin is not none else '' }}"
-                   placeholder="ej: 18">
+            <label>Hora de fin</label>
+            <input type="time" name="hora_fin"
+                   value="{% if plan and plan.hora_fin is not none %}{{ '%02d:00' | format(plan.hora_fin) }}{% endif %}">
         </div>
 
         <div class="form-grupo">
