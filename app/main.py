@@ -313,8 +313,8 @@ def index(
                     es_exterior=p.get("es_exterior", True),
                     clima_recomendado=p.get("clima_recomendado", "cualquiera"),
                     direccion=p.get("direccion"),
-                    latitud=None,
-                    longitud=None,
+                    latitud=p.get("latitud"),
+                    longitud=p.get("longitud"),
                 )
                 db.add(nuevo)
                 db.flush()
@@ -333,8 +333,8 @@ def index(
                     "es_exterior": nuevo.es_exterior,
                     "clima_recomendado": nuevo.clima_recomendado,
                     "direccion": nuevo.direccion,
-                    "latitud": None,
-                    "longitud": None,
+                    "latitud": nuevo.latitud,
+                    "longitud": nuevo.longitud,
                     "generado_por_ia": True,
                     "promedio_valoracion": None,
                 })
