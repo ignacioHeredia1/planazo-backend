@@ -105,7 +105,7 @@ def parse_float(valor) -> Optional[float]:
 # ---------------------------------------------
 # PÁGINA PRINCIPAL
 # ---------------------------------------------
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def index(
     request: Request,
     hora: Optional[str] = None,
