@@ -21,12 +21,17 @@ El proyecto destaca por incorporar funcionalidades completas tanto en el fronten
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Stack Tecnológico y Arquitectura
 
-- **Backend:** Python + FastAPI
-- **Base de Datos:** SQLite (ORM: SQLAlchemy)
-- **Frontend:** Jinja2 Templates, HTML5, Vanilla CSS avanzado, JavaScript (ES6)
-- **APIs Externas:** OpenWeatherMap, OpenStreetMap, Google Gemini AI
+La plataforma está construida sobre una arquitectura moderna y escalable, priorizando el rendimiento asíncrono y la integración de servicios inteligentes:
+
+- **Core Backend (Python & FastAPI):** Motor de alta performance basado en Starlette y Pydantic, que gestiona la lógica de negocio de forma asíncrona (ASGI), garantizando tiempos de respuesta mínimos y validación de datos en tiempo real.
+- **Inteligencia Artificial Generativa (Google Gemini SDK):** Implementación de modelos de lenguaje de última generación (LLM) para la síntesis dinámica de itinerarios. El sistema detecta la ausencia de datos locales y genera propuestas personalizadas mediante ingeniería de prompts avanzada.
+- **Integración de Servicios Externos (APIs REST):**
+  - **Telemetría Climática:** Consumo de **OpenWeatherMap API** para la obtención y procesamiento de datos meteorológicos en tiempo real, permitiendo filtrado dinámico basado en condiciones ambientales.
+  - **Geolocalización:** Integración con **Leaflet.js** y **OpenStreetMap** para el renderizado de mapas interactivos y cálculo de distancias geográficas.
+  - **Multimedia:** Gestión de assets visuales mediante **Unsplash API**, con un sistema de redundancia (fallback) hacia **Picsum Photos**.
+- **Persistencia de Datos (SQLAlchemy ORM):** Capa de abstracción compatible con **PostgreSQL** (Producción) y **SQLite** (Desarrollo), utilizando migraciones automáticas de esquema.
 
 ---
 
