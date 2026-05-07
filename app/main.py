@@ -102,6 +102,11 @@ def parse_float(valor) -> Optional[float]:
     except (ValueError, TypeError):
         return None
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
 # ---------------------------------------------
 # PÁGINA PRINCIPAL
 # ---------------------------------------------
