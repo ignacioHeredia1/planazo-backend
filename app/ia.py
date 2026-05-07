@@ -11,7 +11,17 @@ from app.imagenes import obtener_imagen
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Se inicializa el cliente dentro de la función o se maneja el error para que la app no crashee si falta la API Key
+def get_client():
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        return genai.Client(api_key=api_key)
+    except Exception as e:
+        print(f"Error inicializando cliente de Gemini: {e}")
+        return None
+
 
 
 def generar_planes_ia(
@@ -88,12 +98,35 @@ Reglas:
 - Los planes deben ser lugares reales, variados y realizables en Argentina
 - Adaptá los planes a la ciudad o zona si se especificó"""
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
+    client = get_client()
+    if not client:
+        print("No se pudo generar planes: GEMINI_API_KEY no configurada.")
+        return []
 
+    # Intentamos con varios modelos por si hay problemas de quota o disponibilidad
+    modelos_a_probar = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-3-flash-preview"]
+    
+    response = None
+    ultimo_error = ""
+    
+    for model_name in modelos_a_probar:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            if response:
+                break
+        except Exception as e:
+            ultimo_error = str(e)
+            print(f"Error con modelo {model_name}: {ultimo_error}")
+            continue
+
+    if not response:
+        print(f"No se pudo generar planes con ningún modelo. Último error: {ultimo_error}")
+        return []
+
+    try:
         respuesta = response.text.strip()
 
         # Limpiar posibles bloques de código markdown
