@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <h1>👤 Iniciar sesión</h1>
+        <p class="login-sub">Ingresá a tu cuenta para ver tus favoritos.</p>
+
+        {% if error %}
+        <div class="alert-error">❌ {{ error }}</div>
+        {% endif %}
+
+        {% if mensaje %}
+        <div class="alert-ok">✅ {{ mensaje }}</div>
+        {% endif %}
+
+        <form method="post" action="/login">
+            <div class="form-grupo">
+                <label>Email</label>
+                <input type="email" name="email" required placeholder="tu@email.com" autofocus>
+            </div>
+            <div class="form-grupo">
+                <label>Contraseña</label>
+                <input type="password" name="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn-buscar" style="width:100%; margin-top:1rem;">
+                Ingresar
+            </button>
+        </form>
+
+        <p style="text-align:center; margin-top:1rem; font-size:0.9rem; color:#888;">
+            ¿No tenés cuenta? <a href="/registro" style="color:#6c63ff;">Registrate gratis</a>
+        </p>
+        <a href="/" class="btn-limpiar" style="display:block; text-align:center; margin-top:0.5rem;">
+            ← Volver a la página principal
+        </a>
+    </div>
+</div>
+
+{% endblock %}

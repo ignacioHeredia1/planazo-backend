@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-4 py-8 animate__animated animate__fadeIn">
+    
+    <!-- Botón Volver -->
+    <a href="/" class="inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold mb-8 transition-colors group">
+        <span class="p-2 rounded-full bg-slate-100 group-hover:bg-indigo-50 transition-colors">←</span>
+        Volver a buscar planes
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- COLUMNA IZQUIERDA: Info y Mapa (2/3) -->
+        <div class="lg:col-span-2 space-y-8">
+            
+            <!-- Hero Card -->
+            <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                {% if plan.imagen_url %}
+                <div class="h-[400px] w-full bg-cover bg-center relative" style="background-image: url('{{ plan.imagen_url }}')">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    <div class="absolute bottom-8 left-8 right-8">
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            {% if plan.categoria %}
+                            <span class="px-4 py-1 rounded-full bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest shadow-lg">{{ plan.categoria }}</span>
+                            {% endif %}
+                            <span class="px-4 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-widest border border-white/30">
+                                {% if plan.es_exterior %}🌿 Aire libre{% else %}🏠 Cerrado{% endif %}
+                            </span>
+                        </div>
+                        <h1 class="text-4xl md:text-5xl font-black text-white leading-tight">{{ plan.nombre }}</h1>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="p-8 md:p-10">
+                    <div class="flex items-center gap-4 mb-6">
+                        {% if promedio %}
+                        <div class="flex items-center gap-2 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 rounded-2xl border border-amber-100 dark:border-amber-500/20">
+                            <span class="text-amber-500 font-black text-lg">★ {{ promedio }}</span>
+                            <span class="text-amber-800/60 dark:text-amber-400 text-sm font-bold">({{ valoraciones | length }} reseñas)</span>
+                        </div>
+                        {% endif %}
+                        {% if plan.acepta_mascotas %}
+                        <div class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                            <span>🐾</span> Mascotas OK
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed mb-8">
+                        {{ plan.descripcion }}
+                    </p>
+
+                    <!-- Info Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+                            <span class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">🕐 Horario Recomendado</span>
+                            <span class="text-base font-bold text-slate-700 dark:text-slate-200">
+                                {% if plan.hora_inicio is not none %}{{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00 hs{% else %}Todo el día{% endif %}
+                            </span>
+                        </div>
+                        <div class="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+                            <span class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">💰 Inversión estimada</span>
+                            <span class="text-base font-bold text-slate-700 dark:text-slate-200">
+                                {% if plan.presupuesto_max %}${{ plan.presupuesto_min | int }} - ${{ plan.presupuesto_max | int }}{% else %}Gratis{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mapa -->
+            {% if plan.latitud and plan.longitud or plan.direccion %}
+            <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <h3 class="text-xl font-black text-slate-800 dark:text-white mb-6 flex items-center gap-3">
+                    <span class="p-2 bg-red-50 dark:bg-red-500/10 rounded-xl text-red-500">📍</span>
+                    ¿Dónde queda?
+                </h3>
+                {% if plan.direccion %}
+                <p class="text-slate-500 dark:text-slate-400 font-bold mb-4 ml-1">{{ plan.direccion }}</p>
+                {% endif %}
+                {% if plan.latitud and plan.longitud %}
+                <div id="mapa-detalle" class="h-[300px] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700"></div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- COLUMNA DERECHA: Acciones (1/3) -->
+        <div class="space-y-6">
+            
+            <!-- Caja de Reserva / Contacto (Solo si la empresa lo activa) -->
+            {% if plan.permite_reservas %}
+            <div class="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 dark:shadow-none">
+                <h3 class="text-2xl font-black mb-4 italic">¡Me encanta! 🚀</h3>
+                <p class="text-indigo-100 text-sm mb-8 leading-relaxed">¿Querés ir a este plan? Hacé click abajo para contactar con el lugar y confirmar tu visita.</p>
+                
+                <button onclick="simularReserva()" class="w-full bg-white text-indigo-600 font-black py-4 px-6 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all mb-4">
+                    Confirmar Planazo
+                </button>
+                
+                <p class="text-[10px] text-center text-indigo-300 font-bold uppercase tracking-wider">Simulación académica B2B2C</p>
+            </div>
+            {% endif %}
+
+            <!-- Caja de Guardado / Descarte -->
+            <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-4">
+                {% if usuario %}
+                    {% if en_favoritos %}
+                    <form method="post" action="/favoritos/quitar/{{ plan.id }}">
+                        <button type="submit" class="w-full flex items-center justify-center gap-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-bold py-4 px-6 rounded-2xl hover:bg-red-100 transition-colors">
+                            ❤️ Guardado en favoritos
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="/favoritos/agregar/{{ plan.id }}">
+                        <button type="submit" class="w-full flex items-center justify-center gap-3 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold py-4 px-6 rounded-2xl hover:bg-slate-100 transition-colors border border-slate-100 dark:border-slate-700">
+                            🤍 Guardar para después
+                        </button>
+                    </form>
+                    {% endif %}
+                {% else %}
+                    <a href="/login" class="block text-center bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold py-4 px-6 rounded-2xl border border-slate-100 dark:border-slate-700">
+                        Iniciá sesión para guardar
+                    </a>
+                {% endif %}
+
+                <form method="post" action="/descartar/{{ plan.id }}">
+                    <button type="submit" class="w-full text-slate-400 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-colors py-2">
+                        ✕ No me interesa este plan
+                    </button>
+                </form>
+            </div>
+
+            <!-- Formulario de Reseña -->
+            <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <h3 class="text-xl font-black text-slate-800 dark:text-white mb-6">
+                    {% if mi_valoracion %}✏️ Editá tu reseña{% else %}⭐ ¿Fuiste? Contanos{% endif %}
+                </h3>
+                
+                {% if usuario %}
+                    <form method="post" action="/plan/{{ plan.id }}/valorar" class="space-y-4">
+                        <div class="flex flex-row-reverse justify-center gap-2 mb-4">
+                            {% for i in range(5, 0, -1) %}
+                            <input type="radio" name="puntuacion" id="star{{ i }}" value="{{ i }}" class="hidden peer" {% if mi_valoracion and mi_valoracion.puntuacion == i %}checked{% endif %}>
+                            <label for="star{{ i }}" class="text-3xl cursor-pointer text-slate-200 dark:text-slate-700 peer-checked:text-amber-400 hover:text-amber-300 transition-colors">★</label>
+                            {% endfor %}
+                        </div>
+                        <textarea name="comentario" rows="3" placeholder="¿Qué tal estuvo el lugar?" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-indigo-500/20 text-slate-600 dark:text-slate-300">{% if mi_valoracion %}{{ mi_valoracion.comentario }}{% endif %}</textarea>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none">
+                            Enviar reseña
+                        </button>
+                    </form>
+                {% else %}
+                    <p class="text-slate-400 text-sm text-center italic">Iniciá sesión para dejar una reseña.</p>
+                {% endif %}
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- SECCIÓN RESEÑAS -->
+    <div class="mt-12 space-y-8">
+        <h2 class="text-3xl font-black text-slate-800 dark:text-white">Lo que dicen otros planeros</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% for val in valoraciones %}
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-black">
+                            {{ val.usuario.nombre[0].upper() }}
+                        </div>
+                        <div>
+                            <p class="font-black text-slate-800 dark:text-white leading-none">{{ val.usuario.nombre }}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{{ val.fecha.strftime('%d/%m/%Y') }}</p>
+                        </div>
+                    </div>
+                    <div class="text-amber-400 font-black">
+                        {{ "★" * val.puntuacion }}
+                    </div>
+                </div>
+                <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{{ val.comentario }}</p>
+            </div>
+            {% else %}
+            <div class="col-span-2 py-12 text-center bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-700">
+                <p class="text-slate-400 italic">Todavía no hay reseñas. ¡Sé el primero!</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Scripts de Mapa y Simulación -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    // Inicializar mapa si hay coordenadas
+    {% if plan.latitud and plan.longitud %}
+    const mapaDetalle = L.map('mapa-detalle').setView([{{ plan.latitud }}, {{ plan.longitud }}], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(mapaDetalle);
+    L.marker([{{ plan.latitud }}, {{ plan.longitud }}]).addTo(mapaDetalle)
+        .bindPopup('<strong>{{ plan.nombre }}</strong>').openPopup();
+    {% endif %}
+
+    // Simulación de reserva
+    function simularReserva() {
+        Swal.fire({
+            title: '¡Confirmando tu Planazo!',
+            text: 'Estamos enviando tu interés a {{ plan.nombre }}...',
+            icon: 'info',
+            timer: 2000,
+            showConfirmButton: false,
+            willClose: () => {
+                Swal.fire({
+                    title: '¡Listo!',
+                    text: 'Se ha enviado una notificación al lugar. ¡Que disfrutes tu salida!',
+                    icon: 'success',
+                    confirmButtonText: 'Genial',
+                    confirmButtonColor: '#6366f1'
+                });
+            }
+        });
+    }
+</script>
+
+{% endblock %}

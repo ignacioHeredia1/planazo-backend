@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="admin-header">
+    <h1>
+        {% if request.session.get("admin_logueado") %}
+            Panel de Administrador
+        {% else %}
+            Panel de mi Empresa
+        {% endif %}
+    </h1>
+    <div style="display:flex; gap:0.75rem; align-items:center;">
+        <a href="/admin/nuevo" class="btn-buscar">✚ Nuevo Plan</a>
+        <a href="/admin/logout" class="btn-eliminar" style="padding: 0.5rem 1rem; text-decoration:none;">Cerrar sesión</a>
+    </div>
+</div>
+
+{% if mensaje %}
+<div class="alert-ok">✅ {{ mensaje }}</div>
+{% endif %}
+
+<!-- DASHBOARD ADMIN -->
+<div class="admin-dashboard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+    <div class="stat-card" style="background: var(--surface); padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🗺️</div>
+        <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-1);">{{ stats.total_planes }}</div>
+        <div style="color: var(--text-2); font-size: 0.9rem;">Planes creados</div>
+    </div>
+    <div class="stat-card" style="background: var(--surface); padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">⭐</div>
+        <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-1);">{{ stats.promedio_general }}</div>
+        <div style="color: var(--text-2); font-size: 0.9rem;">Promedio general ({{ stats.total_valoraciones }} res.)</div>
+    </div>
+    <div class="stat-card" style="background: var(--surface); padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">👥</div>
+        <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-1);">{{ stats.total_usuarios }}</div>
+        <div style="color: var(--text-2); font-size: 0.9rem;">Usuarios reg.</div>
+    </div>
+    <div class="stat-card" style="background: var(--surface); padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔥</div>
+        <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-1); text-transform: capitalize;">{{ stats.categoria_popular }}</div>
+        <div style="color: var(--text-2); font-size: 0.9rem;">Categoría Top</div>
+    </div>
+</div>
+
+<div class="tabla-wrapper">
+    <table class="tabla-planes">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Horario</th>
+                <th>Presupuesto</th>
+                <th>Personas</th>
+                <th>Mascotas</th>
+                <th>Lugar</th>
+                <th>Clima</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for plan in planes %}
+            <tr>
+                <td>{{ plan.id }}</td>
+                <td><strong>{{ plan.nombre }}</strong></td>
+                <td>
+                    {% if plan.hora_inicio is not none %}
+                        {{ plan.hora_inicio }}:00 - {{ plan.hora_fin }}:00
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if plan.presupuesto_max %}
+                        ${{ plan.presupuesto_min | int }} - ${{ plan.presupuesto_max | int }}
+                    {% else %}
+                        Gratis
+                    {% endif %}
+                </td>
+                <td>{{ plan.personas_min }} - {{ plan.personas_max or '∞' }}</td>
+                <td>{% if plan.acepta_mascotas %}✅{% else %}❌{% endif %}</td>
+                <td>{% if plan.es_exterior %}🌿 Exterior{% else %}🏠 Interior{% endif %}</td>
+                <td>{{ plan.clima_recomendado | capitalize }}</td>
+                <td class="acciones">
+                    <a href="/admin/editar/{{ plan.id }}" class="btn-editar">✏️ Editar</a>
+                    <form method="post" action="/admin/eliminar/{{ plan.id }}"
+                          onsubmit="return confirm('¿Seguro que querés eliminar este plan?')">
+                        <button type="submit" class="btn-eliminar">🗑️ Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- PAGINACIÓN -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; margin-bottom: 2rem;">
+    <div>
+        {% if current_page > 1 %}
+        <a href="/admin?page={{ current_page - 1 }}" class="btn-buscar" style="text-decoration: none; padding: 0.5rem 1rem; background: var(--surface-2); color: var(--text-1);">&larr; Anterior</a>
+        {% endif %}
+    </div>
+    <div style="color: var(--text-2); font-weight: 500;">
+        Página {{ current_page }} de {{ total_pages }}
+    </div>
+    <div>
+        {% if current_page < total_pages %}
+        <a href="/admin?page={{ current_page + 1 }}" class="btn-buscar" style="text-decoration: none; padding: 0.5rem 1rem; background: var(--surface-2); color: var(--text-1);">Siguiente &rarr;</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="admin-footer">
+    <a href="/" class="btn-limpiar">← Volver a la página principal</a>
+</div>
+
+{% endblock %}
