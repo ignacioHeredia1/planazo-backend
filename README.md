@@ -48,6 +48,7 @@ cd planazo
 python -m venv venv
 # En Windows:
 venv\Scripts\activate
+```
 
 ### 3. Instalar dependencias
 Asegurate de instalar todas las dependencias listadas en `requirements.txt`:
