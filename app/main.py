@@ -15,6 +15,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from app import models, schemas
 from app.clima import obtener_clima_ciudad
@@ -47,6 +51,19 @@ ADMIN_PASSWORD = "planazo123"
 PLANES_MINIMOS = 10
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+SECRET_KEY = "clave-super-secreta-planazo-2025"
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+# Configuración SMTP (opcional para desarrollo local)
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = os.getenv("SMTP_PORT")
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_SENDER = os.getenv("SMTP_SENDER", SMTP_USER)
 
 def hashear_password(password: str) -> str:
     return pwd_context.hash(password[:72])
@@ -516,6 +533,162 @@ def logout_usuario(request: Request):
     request.session.pop("usuario_rol", None)
     return RedirectResponse(url="/", status_code=303)
 
+
+def enviar_email_recuperacion(email: str, enlace: str) -> bool:
+    """Envía un email con el enlace de recuperación. Devuelve True si se envió con éxito."""
+    if not (SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASSWORD) or "tu_email" in SMTP_USER or "tu_contrase" in SMTP_PASSWORD:
+        # Si no están configurados o son de prueba, registramos el link en consola
+        print(f"\n[DEV MODE] Enlace de recuperación para {email}: {enlace}\n")
+        return False
+    
+    try:
+        from email.header import Header
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_SENDER
+        msg['To'] = email
+        msg['Subject'] = Header("Restablecer tu contraseña - Planazo", 'utf-8')
+        
+        cuerpo = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #6366f1; text-align: center;">Recuperación de Contraseña</h2>
+                    <p>Hola,</p>
+                    <p>Has solicitado restablecer la contraseña de tu cuenta en <strong>Planazo</strong>. Haz clic en el siguiente botón para continuar:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{enlace}" style="background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 9999px; font-weight: bold; display: inline-block;">Restablecer Contraseña</a>
+                    </div>
+                    <p>Este enlace es válido por 1 hora. Si no solicitaste este cambio, puedes ignorar este correo.</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 0.8rem; color: #666; text-align: center;">Equipo de Planazo</p>
+                </div>
+            </body>
+        </html>
+        """
+        msg.attach(MIMEText(cuerpo, 'html', 'utf-8'))
+        
+        server = smtplib.SMTP(SMTP_HOST, int(SMTP_PORT))
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = "Error de autenticación SMTP: Las credenciales son incorrectas. Si usas Gmail, recuerda generar una 'Contraseña de Aplicación' de 16 caracteres en Google."
+        print(f"Error al enviar email de recuperación a {email}: {error_msg} Detalle: {e}")
+        raise RuntimeError(error_msg)
+    except Exception as e:
+        error_msg = f"Error de conexión SMTP ({type(e).__name__}): {str(e)}"
+        print(f"Error al enviar email de recuperación a {email}: {error_msg}")
+        raise RuntimeError(error_msg)
+
+@app.get("/recuperar-password", response_class=HTMLResponse)
+def recuperar_password_form(request: Request):
+    if request.session.get("usuario_id"):
+        return RedirectResponse(url="/perfil", status_code=303)
+    return templates.TemplateResponse(request=request, name="recuperar_password.html", context={"error": None, "mensaje": None, "dev_link": None})
+
+@app.post("/recuperar-password")
+def recuperar_password(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    email = email.strip()
+    usuario = db.query(models.Usuario).filter(models.Usuario.email == email).first()
+    if not usuario:
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": "No existe una cuenta con ese correo electrónico", "mensaje": None, "dev_link": None}
+        )
+    
+    token = serializer.dumps(email, salt="password-recovery-salt")
+    base_url = str(request.base_url).rstrip("/")
+    enlace = f"{base_url}/restablecer-password?token={token}"
+    
+    try:
+        enviado = enviar_email_recuperacion(email, enlace)
+        
+        dev_link = None
+        if not enviado:
+            dev_link = enlace
+            mensaje = "Se ha generado el enlace de restablecimiento (Modo de Desarrollo)"
+        else:
+            mensaje = "Se ha enviado un enlace de recuperación a tu correo electrónico."
+            
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": None, "mensaje": mensaje, "dev_link": dev_link}
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": str(e), "mensaje": None, "dev_link": None}
+        )
+
+@app.get("/restablecer-password", response_class=HTMLResponse)
+def restablecer_password_form(request: Request, token: str):
+    try:
+        email = serializer.loads(token, salt="password-recovery-salt", max_age=3600)
+    except SignatureExpired:
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": "El enlace de recuperación ha expirado. Por favor, solicita uno nuevo.", "mensaje": None, "dev_link": None}
+        )
+    except BadSignature:
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": "El enlace de recuperación es inválido.", "mensaje": None, "dev_link": None}
+        )
+        
+    return templates.TemplateResponse(
+        request=request, name="restablecer_password.html",
+        context={"error": None, "token": token, "email": email}
+    )
+
+@app.post("/restablecer-password")
+def restablecer_password(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        email = serializer.loads(token, salt="password-recovery-salt", max_age=3600)
+    except (SignatureExpired, BadSignature):
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": "El enlace no es válido o ha expirado.", "mensaje": None, "dev_link": None}
+        )
+        
+    if len(password) < 6:
+        return templates.TemplateResponse(
+            request=request, name="restablecer_password.html",
+            context={"error": "La contraseña debe tener al menos 6 caracteres", "token": token, "email": email}
+        )
+        
+    if password != confirm_password:
+        return templates.TemplateResponse(
+            request=request, name="restablecer_password.html",
+            context={"error": "Las contraseñas no coinciden", "token": token, "email": email}
+        )
+        
+    usuario = db.query(models.Usuario).filter(models.Usuario.email == email).first()
+    if not usuario:
+        return templates.TemplateResponse(
+            request=request, name="recuperar_password.html",
+            context={"error": "El usuario ya no existe.", "mensaje": None, "dev_link": None}
+        )
+        
+    usuario.hashed_password = hashear_password(password)
+    db.commit()
+    
+    return RedirectResponse(
+        url="/login?mensaje=Contraseña restablecida con éxito. Ya puedes iniciar sesión.",
+        status_code=303
+    )
+
 # ---------------------------------------------
 # PERFIL Y FAVORITOS
 # ---------------------------------------------
@@ -898,3 +1071,148 @@ def eliminar_valoracion(plan_id: int, request: Request, db: Session = Depends(ge
     ).delete()
     db.commit()
     return RedirectResponse(url=f"/plan/{plan_id}", status_code=303)
+
+
+def enviar_email_ticket(email: str, usuario_nombre: str, plan_nombre: str, fecha: str, personas: int, codigo: str) -> bool:
+    """Envía un email con formato de ticket premium al usuario."""
+    if not (SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASSWORD) or "tu_email" in SMTP_USER or "tu_contrase" in SMTP_PASSWORD:
+        print(f"\n[DEV MODE] Enlace/Ticket de reserva para {email}: {codigo} ({plan_nombre})\n")
+        return False
+    
+    try:
+        from email.header import Header
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_SENDER
+        msg['To'] = email
+        msg['Subject'] = Header(f"Tu Ticket para {plan_nombre} - Planazo 🎟️", 'utf-8')
+        
+        cuerpo = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f7fafc; padding: 20px;">
+                <div style="max-width: 500px; margin: 0 auto; background: white; border: 2px dashed #cbd5e1; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                    <div style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white; padding: 30px; text-align: center;">
+                        <span style="font-size: 2.5rem;">🎟️</span>
+                        <h2 style="margin: 10px 0 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.025em;">TICKET PLANAZO</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #e0e7ff; font-weight: 600;">Confirmación de Reserva</p>
+                    </div>
+                    
+                    <div style="padding: 30px; border-bottom: 2px dashed #cbd5e1;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                            <tr>
+                                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Plan:</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 800; color: #1e293b;">{plan_nombre}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Titular:</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 700; color: #1e293b;">{usuario_nombre}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Fecha:</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 700; color: #1e293b;">{fecha}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Personas:</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 700; color: #1e293b;">{personas}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div style="background-color: #f8fafc; padding: 30px; text-align: center;">
+                        <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">Código de Reserva</span>
+                        <div style="background: #e0e7ff; color: #4338ca; border: 2px solid #c7d2fe; display: inline-block; padding: 12px 24px; border-radius: 12px; font-family: 'Courier New', Courier, monospace; font-size: 1.6rem; font-weight: 900; letter-spacing: 0.1em;">
+                            {codigo}
+                        </div>
+                        <p style="margin: 15px 0 0 0; font-size: 0.75rem; color: #94a3b8; font-weight: 500;">Presenta este código en el lugar para validar tu Planazo.</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+        msg.attach(MIMEText(cuerpo, 'html', 'utf-8'))
+        
+        server = smtplib.SMTP(SMTP_HOST, int(SMTP_PORT))
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error al enviar email de ticket a {email}: {e}")
+        return False
+
+
+@app.post("/plan/{plan_id}/reservar")
+def reservar_plan(
+    plan_id: int,
+    request: Request,
+    fecha_reserva: str = Form(...),
+    personas: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    usuario = get_usuario_sesion(request, db)
+    if not usuario:
+        return JSONResponse({"status": "error", "mensaje": "Debes iniciar sesión para reservar."}, status_code=401)
+        
+    plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+    if not plan:
+        return JSONResponse({"status": "error", "mensaje": "Plan no encontrado."}, status_code=404)
+        
+    if not plan.permite_reservas:
+        return JSONResponse({"status": "error", "mensaje": "Este plan no admite reservas en este momento."}, status_code=400)
+        
+    if not fecha_reserva or not fecha_reserva.strip():
+        return JSONResponse({"status": "error", "mensaje": "La fecha de reserva es requerida."}, status_code=400)
+        
+    if personas < 1:
+        return JSONResponse({"status": "error", "mensaje": "La cantidad de personas debe ser al menos 1."}, status_code=400)
+        
+    import secrets
+    import string
+    
+    codigo = ""
+    while True:
+        caracteres = string.ascii_uppercase + string.digits
+        codigo = "PLZ-" + "".join(secrets.choice(caracteres) for _ in range(6))
+        existente = db.query(models.Reserva).filter(models.Reserva.codigo_ticket == codigo).first()
+        if not existente:
+            break
+            
+    fecha_formateada = fecha_reserva
+    try:
+        partes = fecha_reserva.split("-")
+        if len(partes) == 3:
+            fecha_formateada = f"{partes[2]}/{partes[1]}/{partes[0]}"
+    except Exception:
+        pass
+
+    nueva_reserva = models.Reserva(
+        usuario_id=usuario.id,
+        plan_id=plan.id,
+        codigo_ticket=codigo,
+        fecha_reserva=fecha_reserva,
+        personas=personas
+    )
+    db.add(nueva_reserva)
+    db.commit()
+    
+    enviado = enviar_email_ticket(
+        email=usuario.email,
+        usuario_nombre=usuario.nombre,
+        plan_nombre=plan.nombre,
+        fecha=fecha_formateada,
+        personas=personas,
+        codigo=codigo
+    )
+    
+    return JSONResponse({
+        "status": "ok",
+        "mensaje": "¡Reserva realizada con éxito!",
+        "ticket": {
+            "codigo": codigo,
+            "plan": plan.nombre,
+            "fecha": fecha_formateada,
+            "personas": personas,
+            "email_enviado": enviado,
+            "destinatario": usuario.email
+        }
+    })

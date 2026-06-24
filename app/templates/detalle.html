@@ -94,15 +94,35 @@
             
             <!-- Caja de Reserva / Contacto (Solo si la empresa lo activa) -->
             {% if plan.permite_reservas %}
-            <div class="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 dark:shadow-none">
-                <h3 class="text-2xl font-black mb-4 italic">¡Me encanta! 🚀</h3>
-                <p class="text-indigo-100 text-sm mb-8 leading-relaxed">¿Querés ir a este plan? Hacé click abajo para contactar con el lugar y confirmar tu visita.</p>
+            <div class="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 dark:shadow-none animate__animated animate__fadeInUp">
+                <h3 class="text-2xl font-black mb-2 italic">¡Me encanta! 🚀</h3>
+                <p class="text-indigo-100 text-xs mb-6 leading-relaxed">Reservá tu lugar ahora y recibí tu ticket digital al instante.</p>
                 
-                <button onclick="simularReserva()" class="w-full bg-white text-indigo-600 font-black py-4 px-6 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all mb-4">
-                    Confirmar Planazo
-                </button>
+                {% if usuario %}
+                <form id="booking-form" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-indigo-200 mb-1">Fecha de la visita</label>
+                        <input type="date" name="fecha_reserva" id="reserva_fecha" required class="w-full px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white font-bold text-sm focus:ring-2 focus:ring-white/40 focus:border-transparent outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-indigo-200 mb-1">Cantidad de personas</label>
+                        <input type="number" name="personas" id="reserva_personas" min="1" max="10" value="1" required class="w-full px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white font-bold text-sm focus:ring-2 focus:ring-white/40 focus:border-transparent outline-none">
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-white text-indigo-600 font-black py-4 px-6 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all mt-4 flex items-center justify-center gap-2">
+                        🎟️ Reservar y Generar Ticket
+                    </button>
+                </form>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-indigo-100 text-sm mb-4">Iniciá sesión para poder realizar una reserva.</p>
+                    <a href="/login" class="inline-block bg-white text-indigo-600 font-black py-3 px-6 rounded-2xl hover:scale-105 transition-all text-sm" style="text-decoration: none; color: #6366f1;">
+                        Iniciar Sesión
+                    </a>
+                </div>
+                {% endif %}
                 
-                <p class="text-[10px] text-center text-indigo-300 font-bold uppercase tracking-wider">Simulación académica B2B2C</p>
+                <p class="text-[9px] text-center text-indigo-200/60 font-bold uppercase tracking-wider mt-6">Confirmación inmediata vía email</p>
             </div>
             {% endif %}
 
@@ -212,21 +232,105 @@
         .bindPopup('<strong>{{ plan.nombre }}</strong>').openPopup();
     {% endif %}
 
-    // Simulación de reserva
-    function simularReserva() {
-        Swal.fire({
-            title: '¡Confirmando tu Planazo!',
-            text: 'Estamos enviando tu interés a {{ plan.nombre }}...',
-            icon: 'info',
-            timer: 2000,
-            showConfirmButton: false,
-            willClose: () => {
+    // Lógica de Reserva Real con Generación de Ticket
+    const bookingForm = document.getElementById('booking-form');
+    if (bookingForm) {
+        // Establecer la fecha de hoy como fecha mínima en el selector de fecha
+        const hoy = new Date().toISOString().split('T')[0];
+        document.getElementById('reserva_fecha').min = hoy;
+        
+        bookingForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fechaVal = document.getElementById('reserva_fecha').value;
+            const personasVal = document.getElementById('reserva_personas').value;
+            
+            Swal.fire({
+                title: 'Generando tu Ticket...',
+                text: 'Procesando la reserva en el sistema y enviando el correo...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            try {
+                const formData = new FormData();
+                formData.append('fecha_reserva', fechaVal);
+                formData.append('personas', personasVal);
+                
+                const response = await fetch('/plan/{{ plan.id }}/reservar', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'ok') {
+                    const ticket = data.ticket;
+                    const ticketHtml = `
+                        <div class="text-left mt-2 p-5 bg-slate-50 dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 font-sans">
+                            <div class="text-center pb-4 mb-4 border-b border-slate-200 dark:border-slate-700">
+                                <span class="text-4xl">🎟️</span>
+                                <h4 class="font-extrabold text-lg text-slate-800 dark:text-slate-100 mt-2">${ticket.plan}</h4>
+                                <p class="text-xs text-indigo-500 font-bold uppercase tracking-wider">Planazo Confirmado</p>
+                            </div>
+                            <div class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                <div class="flex justify-between">
+                                    <span class="font-semibold text-slate-400">Fecha:</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${ticket.fecha}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="font-semibold text-slate-400">Personas:</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${ticket.personas} ${ticket.personas > 1 ? 'personas' : 'persona'}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="font-semibold text-slate-400">Titular:</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${ticket.destinatario}</span>
+                                </div>
+                            </div>
+                            <div class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700 text-center">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Código de Ticket</span>
+                                <span class="inline-block bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 px-4 py-2.5 rounded-2xl font-mono text-xl font-black tracking-widest select-all">
+                                    ${ticket.codigo}
+                                </span>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-4 text-center">
+                            ${ticket.email_enviado ? '📧 ¡Enviamos una copia digital de tu ticket a tu email!' : '🛠️ Modo de desarrollo: Ticket impreso en consola del servidor.'}
+                        </p>
+                    `;
+                    
+                    Swal.fire({
+                        title: '¡Reserva Confirmada!',
+                        html: ticketHtml,
+                        icon: 'success',
+                        confirmButtonText: '¡Excelente, iré!',
+                        confirmButtonColor: '#6366f1',
+                        customClass: {
+                            popup: 'rounded-[2rem]'
+                        }
+                    });
+                    
+                    bookingForm.reset();
+                    
+                } else {
+                    Swal.fire({
+                        title: 'Error al reservar',
+                        text: data.mensaje || 'Ocurrió un error inesperado al intentar reservar.',
+                        icon: 'error',
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#ef4444'
+                    });
+                }
+            } catch (error) {
+                console.error('Error reserving plan:', error);
                 Swal.fire({
-                    title: '¡Listo!',
-                    text: 'Se ha enviado una notificación al lugar. ¡Que disfrutes tu salida!',
-                    icon: 'success',
-                    confirmButtonText: 'Genial',
-                    confirmButtonColor: '#6366f1'
+                    title: 'Error de Red',
+                    text: 'No pudimos comunicarnos con el servidor para confirmar tu reserva.',
+                    icon: 'error',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#ef4444'
                 });
             }
         });

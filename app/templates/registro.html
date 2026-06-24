@@ -24,9 +24,20 @@
                 <label>Contraseña</label>
                 <input type="password" name="password" required placeholder="Mínimo 6 caracteres">
             </div>
-            <div class="form-grupo" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
-                <input type="checkbox" name="es_empresa" id="es_empresa" value="true" style="width: auto;">
-                <label for="es_empresa" style="margin: 0; font-weight: normal; cursor: pointer;">🏢 Soy una Empresa (Quiero publicar planes)</label>
+            <div class="my-4">
+                <label class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer select-none">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">🏢</span>
+                        <div class="text-left">
+                            <span class="block text-sm font-bold text-slate-800 dark:text-slate-200">Cuenta de Empresa</span>
+                            <span class="block text-xs text-slate-500 dark:text-slate-400">Quiero publicar mis propios planes</span>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" name="es_empresa" id="es_empresa" value="true" class="sr-only peer">
+                        <div class="w-11 h-6 relative bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </div>
+                </label>
             </div>
             <button type="submit" class="btn-buscar" style="width:100%; margin-top:1rem;">
                 Crear cuenta

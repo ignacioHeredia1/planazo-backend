@@ -85,3 +85,18 @@ class Valoracion(Base):
 
     usuario = relationship("Usuario", back_populates="valoraciones")
     plan = relationship("Plan", back_populates="valoraciones")
+
+
+class Reserva(Base):
+    __tablename__ = "reservas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("planes.id"), nullable=False)
+    codigo_ticket = Column(String, unique=True, index=True, nullable=False)
+    fecha_reserva = Column(String, nullable=False)
+    personas = Column(Integer, default=1)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+
+    usuario = relationship("Usuario")
+    plan = relationship("Plan")
