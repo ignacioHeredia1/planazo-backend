@@ -8,25 +8,25 @@
 
 :root {
 
-    --bg: #fafaf8;
+    --bg: #e5e7ff;
 
-    --surface: #ffffff;
+    --surface: #f8f9ff;
 
-    --surface-2: #f4f4f0;
+    --surface-2: #f8f9ff;
 
     --border: #e8e8e2;
 
     --border-2: #d8d8d0;
 
-    --text: #1a1a18;
+    --text: #4a4b6d;
 
     --text-2: #6b6b63;
 
     --text-3: #a8a89e;
 
-    --accent: #2d2d2a;
+    --accent: #2dd4a0;
 
-    --accent-2: #5c5c56;
+    --accent-2: #2dd4a0;
 
     --green: #3d7a4a;
 
@@ -53,6 +53,10 @@
     --radius: 14px;
 
     --radius-lg: 20px;
+    --radius-sm: 8px;
+    --primary: #5046e5;
+    --text-1: #4a4b6d;
+    --transition: all 0.2s ease;
 }
 
 [data-theme="dark"] {
@@ -96,6 +100,8 @@ body {
 
     min-height: 100vh;
 
+    min-width: 320px;
+
     display: flex;
 
     flex-direction: column;
@@ -110,7 +116,7 @@ body {
 
 .navbar {
 
-    background: rgba(255, 255, 255, 0.85);
+    background: #f8f9ff;
 
     backdrop-filter: blur(12px);
 
