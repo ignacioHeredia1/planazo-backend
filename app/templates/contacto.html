@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <img src="/static/Planazo_logo.png" alt="Logo" style="height: 80px; width: auto; display: block; margin: 0 auto 1rem auto;">
+            <h1>📬 Soporte Técnico</h1>
+            <p class="login-sub">Completá el formulario y te responderemos a la brevedad.</p>
+        </div>
+
+        {% if enviado %}
+        <div style="background: #d1fae5; border: 1px solid #6ee7b7; border-radius: var(--radius); padding: 1rem; text-align: center; margin-bottom: 1rem;">
+            ✅ <strong>Ticket #{{ ticket_id }} creado correctamente.</strong><br>
+            <span style="font-size: 0.9rem; color: #065f46;">Te responderemos al email ingresado.</span>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/contacto">
+            <div class="form-grupo">
+                <label>Nombre</label>
+                <input type="text" name="nombre" required placeholder="Tu nombre"
+                       value="{{ request.session.get('usuario_nombre', '') }}">
+            </div>
+            <div class="form-grupo">
+                <label>Email</label>
+                <input type="email" name="email" required placeholder="tu@email.com"
+                       value="{{ request.session.get('usuario_email', '') }}">
+            </div>
+            <div class="form-grupo">
+                <label>Asunto</label>
+                <select name="asunto" required>
+                    <option value="">Seleccioná un motivo</option>
+                    <option value="Error en la plataforma">🐛 Error en la plataforma</option>
+                    <option value="Problema con mi cuenta">👤 Problema con mi cuenta</option>
+                    <option value="Consulta general">💬 Consulta general</option>
+                    <option value="Sugerencia">💡 Sugerencia</option>
+                    <option value="Otro">📋 Otro</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>Mensaje</label>
+                <textarea name="mensaje" required placeholder="Describí tu problema o consulta..." 
+                          style="width: 100%; min-height: 120px; padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.95rem; resize: vertical;"></textarea>
+            </div>
+            <button type="submit" class="btn-buscar" style="width: 100%; margin-top: 1rem;">
+                📨 Enviar ticket
+            </button>
+        </form>
+
+        <a href="/" class="btn-limpiar" style="display:block; text-align:center; margin-top:1rem;">
+            ← Volver a la página principal
+        </a>
+    </div>
+</div>
+
+{% endblock %}

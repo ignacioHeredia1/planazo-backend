@@ -100,3 +100,14 @@ class Reserva(Base):
 
     usuario = relationship("Usuario")
     plan = relationship("Plan")
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    asunto = Column(String, nullable=False)
+    mensaje = Column(Text, nullable=False)
+    estado = Column(String, default="abierto")  # abierto, en_proceso, cerrado
+    fecha = Column(DateTime, default=datetime.now)

@@ -1216,3 +1216,33 @@ def reservar_plan(
             "destinatario": usuario.email
         }
     })
+
+# ---------------------------------------------
+# CONTACTO / TICKETS
+# ---------------------------------------------
+@app.get("/contacto")
+def contacto(request: Request):
+    return templates.TemplateResponse(request, "contacto.html", {"enviado": False})
+
+@app.post("/contacto")
+def contacto_post(
+    request: Request,
+    nombre: str = Form(...),
+    email: str = Form(...),
+    asunto: str = Form(...),
+    mensaje: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    ticket = models.Ticket(
+        nombre=nombre,
+        email=email,
+        asunto=asunto,
+        mensaje=mensaje
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+    return templates.TemplateResponse(request, "contacto.html", {
+        "enviado": True,
+        "ticket_id": ticket.id
+    })
